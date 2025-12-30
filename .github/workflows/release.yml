@@ -29,6 +29,7 @@ jobs:
     needs: create-release
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -59,7 +60,9 @@ jobs:
         run: npm run build
 
       - name: Build installer for ${{ matrix.platform }}
-        run: npx electron-builder --${{ matrix.platform }}
+        run: npx electron-builder --${{ matrix.platform }} --publish never
+        env:
+          DEBUG: electron-builder
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
