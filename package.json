@@ -1,0 +1,86 @@
+{
+  "name": "usage-tray",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Usage Tray App",
+  "author": {
+    "name": "Usage Tray Developer",
+    "email": "dev@example.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dan-jeff/coding-plan-usage.git"
+  },
+  "homepage": "https://github.com/dan-jeff/coding-plan-usage",
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "build:preload": "tsc electron/preload.ts --target es2020 --module commonjs --moduleResolution node --outDir dist-electron --esModuleInterop --skipLibCheck && mv dist-electron/preload.js dist-electron/preload.cjs",
+    "build:electron": "vite build -c vite.electron.config.ts && cp -r electron/assets dist-electron/",
+    "build": "npm run build:electron && npm run build:preload && tsc && vite build",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write .",
+    "dev": "npm run build:preload && concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env NODE_ENV=development NODE_OPTIONS='--import tsx' electron electron/main.ts --no-sandbox\"",
+    "preview": "vite preview"
+  },
+  "build": {
+    "appId": "com.usagetray.app",
+    "productName": "Usage Tray",
+    "directories": {
+      "output": "dist_electron_build"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "keywords": [],
+  "license": "ISC",
+  "dependencies": {
+    "auto-launch": "^5.0.6",
+    "electron-store": "^11.0.2",
+    "lucide-react": "^0.562.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "@types/auto-launch": "^5.0.5",
+    "@types/node": "^25.0.3",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@typescript-eslint/eslint-plugin": "^8.51.0",
+    "@typescript-eslint/parser": "^8.51.0",
+    "@vitejs/plugin-react": "^5.1.2",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "prettier": "^3.7.4",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0",
+    "wait-on": "^9.0.3"
+  }
+}

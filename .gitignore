@@ -1,0 +1,9 @@
+node_modules/
+dist/
+dist-electron/
+dist_electron_build/
+release/
+.DS_Store
+.env
+*.log
+.ruff_cache/

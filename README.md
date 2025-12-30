@@ -1,0 +1,107 @@
+# Usage Tray
+
+Usage Tray is a system tray application that tracks usage quotas for Z.ai and Claude.ai. It sits quietly in your tray and provides quick access to your usage stats.
+
+## 📋 Table of Contents
+
+- [Screenshots](#-screenshots)
+- [How it Works (Transparency)](#-how-it-works-transparency)
+- [Getting Started](#-getting-started)
+- [Installation](#-installation)
+- [Development](#-development)
+- [Building](#-building)
+- [Tech Stack](#-tech-stack)
+
+## 📸 Screenshots
+
+### Dashboard View
+![Dashboard showing Z.ai and Claude usage stats](screenshots/dashboard.png)
+
+### Settings Panel
+![Settings panel with provider connections](screenshots/settings.png)
+
+## 🔍 How it Works (Transparency)
+
+This application operates by using a secure, hidden browser window (powered by Electron) to log in to the provider's website. It captures session cookies and usage data strictly within your local environment.
+
+**Important**: All data, including session cookies and usage statistics, is stored locally on your machine. No sensitive information is transmitted to any external servers other than the service providers themselves (Z.ai/Claude.ai) for the purpose of fetching your usage data.
+
+## 🚀 Getting Started
+
+### Connecting Your Providers
+
+Follow these steps to connect Z.ai or Claude to the Usage Tray:
+
+1. **Open Settings**
+   - Click the Settings button in the application
+
+2. **Initiate Connection**
+   - In the "Providers" section, click the "Connect" button next to either Z.ai or Claude
+
+3. **Browser Authentication**
+   - A browser window will automatically open
+   - Sign in to your account using your normal credentials
+
+4. **Navigate to Usage Page** ⚠️ **Important Step**
+   - After signing in, you must navigate to the usage page for the app to capture your session:
+     - **For Z.ai**: Go to `https://z.ai/manage-apikey/subscription`
+     - **For Claude**: Go to `https://claude.ai/settings/usage`
+
+5. **Automatic Detection**
+   - The app will automatically detect and save your session cookies
+   - The browser window will close automatically once the session is captured
+
+6. **Verify Connection**
+   - Return to the Settings panel
+   - You should see the provider marked as "Active"
+   - Usage stats will now appear in the dashboard
+
+### Using the Application
+
+Once connected, Usage Tray will:
+- Display real-time usage statistics for connected providers
+- Show percentage used and time remaining
+- Update automatically based on your configured polling interval
+- Sit quietly in your system tray for quick access
+
+## 💻 Installation
+
+1.  Clone the repository:
+
+    ```bash
+    git clone https://github.com/dan-jeff/coding-plan-usage.git
+    cd coding-plan-usage
+    ```
+
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+
+## 🛠️ Development
+
+To start the application in development mode (React dev server + Electron):
+
+```bash
+npm run dev
+```
+
+## 📦 Building
+
+To build the application for your operating system:
+
+```bash
+npm run dist
+```
+
+### Platform Specific Builds
+
+- **Windows**: `npm run dist:win`
+- **Linux**: `npm run dist:linux`
+
+## 🔧 Tech Stack
+
+- **Electron**: Desktop application framework
+- **React**: UI library
+- **TypeScript**: Static typing
+- **Vite**: Build tool and dev server
