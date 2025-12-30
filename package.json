@@ -41,7 +41,8 @@
         "AppImage",
         "deb"
       ],
-      "category": "Utility"
+      "category": "Utility",
+      "icon": "electron/assets/icon.png"
     },
     "win": {
       "target": "nsis"
