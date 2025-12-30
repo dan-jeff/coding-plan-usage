@@ -34,10 +34,8 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: linux
-            artifact_pattern: 'dist_electron_build/*.{AppImage,deb}'
           - os: windows-latest
             platform: win
-            artifact_pattern: 'dist_electron_build/*.exe'
 
     steps:
       - name: Checkout code
@@ -67,6 +65,9 @@ jobs:
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
         with:
-          files: ${{ matrix.artifact_pattern }}
+          files: |
+            dist_electron_build/*.AppImage
+            dist_electron_build/*.deb
+            dist_electron_build/*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
