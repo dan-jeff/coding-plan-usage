@@ -10,6 +10,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAutoLaunch: () => ipcRenderer.invoke('get-auto-launch'),
   setAutoLaunch: (enabled: boolean) =>
     ipcRenderer.send('set-auto-launch', enabled),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  getAutoUpdate: () => ipcRenderer.invoke('get-auto-update'),
+  setAutoUpdate: (enabled: boolean) =>
+    ipcRenderer.send('set-auto-update', enabled),
   getRefreshInterval: () => ipcRenderer.invoke('get-refresh-interval'),
   setRefreshInterval: (minutes: number) =>
     ipcRenderer.send('set-refresh-interval', minutes),

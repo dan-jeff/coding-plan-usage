@@ -36,6 +36,9 @@ declare global {
       ) => () => void;
       getAutoLaunch: () => Promise<boolean>;
       setAutoLaunch: (enabled: boolean) => Promise<void>;
+      getAppVersion: () => Promise<string>;
+      getAutoUpdate: () => Promise<boolean>;
+      setAutoUpdate: (enabled: boolean) => Promise<void>;
       getRefreshInterval: () => Promise<number>;
       setRefreshInterval: (minutes: number) => void;
       quitApp: () => void;

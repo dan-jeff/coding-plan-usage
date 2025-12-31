@@ -15,6 +15,8 @@ function App() {
   const [view, setView] = useState<'dashboard' | 'settings'>('dashboard');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [autoLaunch, setAutoLaunch] = useState(false);
+  const [autoUpdate, setAutoUpdate] = useState(true);
+  const [appVersion, setAppVersion] = useState('');
   const [refreshInterval, setRefreshInterval] = useState(15);
   const [providers, setProviders] = useState<{ [key: string]: ProviderData }>({
     z_ai: { label: 'Z.ai', connected: false, usage: null },
@@ -51,6 +53,23 @@ function App() {
       }
     };
     loadAutoLaunch();
+
+    // Load App Version and Auto Update Status
+    const loadAppInfo = async () => {
+      try {
+        if (window.electronAPI.getAppVersion) {
+          const version = await window.electronAPI.getAppVersion();
+          setAppVersion(version);
+        }
+        if (window.electronAPI.getAutoUpdate) {
+          const isEnabled = await window.electronAPI.getAutoUpdate();
+          setAutoUpdate(isEnabled);
+        }
+      } catch (err) {
+        console.error('Failed to get app info', err);
+      }
+    };
+    loadAppInfo();
 
     // Load Refresh Interval
     const loadRefreshInterval = async () => {
@@ -133,6 +152,14 @@ function App() {
     setAutoLaunch(checked);
     if (window.electronAPI.setAutoLaunch) {
       window.electronAPI.setAutoLaunch(checked);
+    }
+  };
+
+  const handleAutoUpdateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const checked = e.target.checked;
+    setAutoUpdate(checked);
+    if (window.electronAPI.setAutoUpdate) {
+      window.electronAPI.setAutoUpdate(checked);
     }
   };
 
@@ -242,6 +269,9 @@ function App() {
           <SettingsView
             autoLaunch={autoLaunch}
             handleAutoLaunchChange={handleAutoLaunchChange}
+            autoUpdate={autoUpdate}
+            handleAutoUpdateChange={handleAutoUpdateChange}
+            appVersion={appVersion}
             refreshInterval={refreshInterval}
             handleRefreshIntervalChange={handleRefreshIntervalChange}
             providers={providers}

@@ -5,6 +5,9 @@ import { styles, theme } from '../theme';
 interface SettingsViewProps {
   autoLaunch: boolean;
   handleAutoLaunchChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  autoUpdate: boolean;
+  handleAutoUpdateChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  appVersion: string;
   refreshInterval: number;
   handleRefreshIntervalChange: (
     e: React.ChangeEvent<HTMLSelectElement>
@@ -17,6 +20,9 @@ interface SettingsViewProps {
 export const SettingsView = ({
   autoLaunch,
   handleAutoLaunchChange,
+  autoUpdate,
+  handleAutoUpdateChange,
+  appVersion,
   refreshInterval,
   handleRefreshIntervalChange,
   providers,
@@ -36,6 +42,23 @@ export const SettingsView = ({
             style={styles.checkbox}
           />
         </div>
+        <div style={styles.settingRow}>
+          <span style={styles.settingLabel}>Auto Update</span>
+          <input
+            type="checkbox"
+            checked={autoUpdate}
+            onChange={handleAutoUpdateChange}
+            style={styles.checkbox}
+          />
+        </div>
+        {appVersion && (
+          <div style={{ ...styles.settingRow, borderBottom: 'none' }}>
+            <span style={styles.settingLabel}>Version</span>
+            <span style={{ color: theme.textSec, fontSize: '13px' }}>
+              {appVersion}
+            </span>
+          </div>
+        )}
       </div>
 
       <div style={styles.settingsSection}>

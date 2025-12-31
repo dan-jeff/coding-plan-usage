@@ -11,6 +11,8 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import AutoLaunch from 'auto-launch';
+import electronUpdater from 'electron-updater';
+const { autoUpdater } = electronUpdater;
 import { startPolling, refreshAll, updatePollingInterval } from './poller.js';
 import {
   saveSession,
@@ -24,6 +26,8 @@ const _dirname =
   typeof __dirname !== 'undefined'
     ? __dirname
     : dirname(fileURLToPath(import.meta.url));
+
+autoUpdater.logger = console;
 
 const autoLauncher = new AutoLaunch({
   name: 'Coding Usage',
@@ -153,6 +157,11 @@ app.whenReady().then(() => {
 
   if (tray) {
     startPolling(tray);
+  }
+
+  const autoUpdate = getSetting('autoUpdate', true);
+  if (autoUpdate) {
+    autoUpdater.checkForUpdatesAndNotify();
   }
 
   app.on('activate', () => {
@@ -457,4 +466,16 @@ ipcMain.on('set-refresh-interval', (event, minutes) => {
   if (tray) {
     updatePollingInterval(tray, minutes);
   }
+});
+
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion();
+});
+
+ipcMain.handle('get-auto-update', () => {
+  return getSetting('autoUpdate', true);
+});
+
+ipcMain.on('set-auto-update', (event, enable) => {
+  setSetting('autoUpdate', enable);
 });
