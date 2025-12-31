@@ -15,9 +15,11 @@ Usage Tray is a system tray application that tracks usage quotas for Z.ai and Cl
 ## 📸 Screenshots
 
 ### Dashboard View
+
 ![Dashboard showing Z.ai and Claude usage stats](screenshots/dashboard.png)
 
 ### Settings Panel
+
 ![Settings panel with provider connections](screenshots/settings.png)
 
 ## 🔍 How it Works (Transparency)
@@ -59,6 +61,7 @@ Follow these steps to connect Z.ai or Claude to the Usage Tray:
 ### Using the Application
 
 Once connected, Usage Tray will:
+
 - Display real-time usage statistics for connected providers
 - Show percentage used and time remaining
 - Update automatically based on your configured polling interval
@@ -98,6 +101,28 @@ npm run dist
 
 - **Windows**: `npm run dist:win`
 - **Linux**: `npm run dist:linux`
+
+## 🚀 Release Process
+
+Automated releases are handled via GitHub Actions when a new version tag is pushed.
+
+1.  **Tag the release**:
+
+    ```bash
+    git tag v1.0.0
+    git push origin v1.0.0
+    ```
+
+2.  **Monitor the build**:
+    - Go to the [Actions tab](https://github.com/dan-jeff/coding-plan-usage/actions) on GitHub.
+    - Watch the "Release" workflow.
+
+3.  **Download assets**:
+    - Once completed, the new version will appear in [Releases](https://github.com/dan-jeff/coding-plan-usage/releases).
+    - Assets include:
+      - `Usage.Tray.Setup.x.x.x.exe` (Windows Installer)
+      - `Usage.Tray-x.x.x.AppImage` (Linux AppImage)
+      - `usage-tray_x.x.x_amd64.deb` (Linux Debian Package)
 
 ## 🔧 Tech Stack
 
