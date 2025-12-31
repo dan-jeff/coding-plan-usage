@@ -1,5 +1,5 @@
 import React from 'react';
-import { ProviderData } from '../types';
+import { ProviderData, UpdateStatusData } from '../types';
 import { styles, theme } from '../theme';
 
 interface SettingsViewProps {
@@ -15,6 +15,11 @@ interface SettingsViewProps {
   providers: { [key: string]: ProviderData };
   onConnect: (key: string) => void;
   onReconnect: (key: string) => void;
+  updateStatus: UpdateStatusData['type'] | 'idle';
+  updateMessage: string;
+  updateProgress: number;
+  onCheckUpdate: () => void;
+  onQuitAndInstall: () => void;
 }
 
 export const SettingsView = ({
@@ -28,6 +33,11 @@ export const SettingsView = ({
   providers,
   onConnect,
   onReconnect,
+  updateStatus,
+  updateMessage,
+  updateProgress,
+  onCheckUpdate,
+  onQuitAndInstall,
 }: SettingsViewProps) => {
   return (
     <div>
@@ -52,13 +62,73 @@ export const SettingsView = ({
           />
         </div>
         {appVersion && (
-          <div style={{ ...styles.settingRow, borderBottom: 'none' }}>
+          <div style={styles.settingRow}>
             <span style={styles.settingLabel}>Version</span>
             <span style={{ color: theme.textSec, fontSize: '13px' }}>
               {appVersion}
             </span>
           </div>
         )}
+        <div style={{ ...styles.settingRow, borderBottom: 'none' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <span style={styles.settingLabel}>Check for Updates</span>
+            {updateMessage && (
+              <span
+                style={{
+                  fontSize: '11px',
+                  color:
+                    updateStatus === 'error'
+                      ? theme.accentRed
+                      : updateStatus === 'available' ||
+                          updateStatus === 'downloaded'
+                        ? theme.accentGreen
+                        : theme.textSec,
+                }}
+              >
+                {updateMessage}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => {
+              if (
+                updateStatus === 'idle' ||
+                updateStatus === 'error' ||
+                updateStatus === 'not-available'
+              ) {
+                onCheckUpdate();
+              } else if (updateStatus === 'downloaded') {
+                onQuitAndInstall();
+              }
+            }}
+            disabled={
+              updateStatus === 'checking' || updateStatus === 'downloading'
+            }
+            style={{
+              ...styles.connectBtn,
+              opacity:
+                updateStatus === 'checking' || updateStatus === 'downloading'
+                  ? 0.6
+                  : 1,
+              backgroundColor:
+                updateStatus === 'downloaded'
+                  ? theme.accentGreen
+                  : styles.connectBtn.backgroundColor,
+              cursor:
+                updateStatus === 'checking' || updateStatus === 'downloading'
+                  ? 'not-allowed'
+                  : 'pointer',
+            }}
+          >
+            {updateStatus === 'checking'
+              ? 'Checking...'
+              : updateStatus === 'downloading'
+                ? `Downloading... ${Math.round(updateProgress)}%`
+                : updateStatus === 'downloaded'
+                  ? 'Restart & Install'
+                  : 'Check for Updates'}
+          </button>
+        </div>
       </div>
 
       <div style={styles.settingsSection}>

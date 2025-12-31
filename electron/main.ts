@@ -489,3 +489,88 @@ ipcMain.handle('get-auto-update', () => {
 ipcMain.on('set-auto-update', (event, enable) => {
   setSetting('autoUpdate', enable);
 });
+
+autoUpdater.on('checking-for-update', () => {
+  mainWindow?.webContents.send('update-status', { type: 'checking' });
+});
+
+autoUpdater.on('update-available', (info) => {
+  mainWindow?.webContents.send('update-status', {
+    type: 'available',
+    version: info.version,
+  });
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  mainWindow?.webContents.send('update-status', {
+    type: 'not-available',
+    version: info.version,
+  });
+});
+
+autoUpdater.on('error', (err) => {
+  mainWindow?.webContents.send('update-status', {
+    type: 'error',
+    error: err.message,
+  });
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  mainWindow?.webContents.send('update-status', {
+    type: 'downloaded',
+    version: info.version,
+  });
+});
+
+autoUpdater.on('download-progress', (info) => {
+  mainWindow?.webContents.send('update-status', {
+    type: 'downloading',
+    progress: {
+      percent: info.percent,
+      transferred: info.transferred,
+      total: info.total,
+    },
+  });
+});
+
+ipcMain.on('check-for-update', async () => {
+  try {
+    if (process.env.NODE_ENV === 'development') {
+      // In development, we might not have a valid update configuration
+      // Simulate a check with a delay to verify UI behavior
+      console.log('Development mode: Simulating update check...');
+      mainWindow?.webContents.send('update-status', { type: 'checking' });
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Simulate no update available for now (or error if preferred)
+      // To test "update available", you could swap this logic
+      mainWindow?.webContents.send('update-status', {
+        type: 'not-available',
+        version: app.getVersion(),
+      });
+      return;
+    }
+
+    console.log('Checking for updates...');
+    const result = await autoUpdater.checkForUpdates();
+    console.log('Update check result:', result);
+    // Note: checkForUpdates() returns a Promise that resolves to UpdateCheckResult | null
+    // If null, it means check was cancelled or no update info found.
+    // Events like 'update-available' or 'update-not-available' should fire independently.
+
+    if (!result) {
+      // Sometimes result is null if check is skipped or fails silently?
+      // Usually it throws if it fails.
+    }
+  } catch (err) {
+    console.error('Error checking for updates:', err);
+    mainWindow?.webContents.send('update-status', {
+      type: 'error',
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+ipcMain.on('quit-and-install', () => {
+  autoUpdater.quitAndInstall();
+});

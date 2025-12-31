@@ -61,12 +61,30 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate version tag
+        shell: bash
+        run: |
+          TAG="${{ github.ref_name }}"
+          # Check tag format (v1.2.3 or v1.2.3-beta.1)
+          if ! echo "$TAG" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
+            echo "ERROR: Tag '$TAG' does not match semver format (vX.Y.Z)"
+            exit 1
+          fi
+          echo "✓ Valid semver tag: $TAG"
+
       - name: Stamp version from tag
         shell: bash
         run: |
           VERSION="${{ needs.create-release.outputs.version }}"
-          echo "Setting version to $VERSION"
-          npm version $VERSION --no-git-tag-version --allow-same-version
+          echo "Building version $VERSION from tag ${{ github.ref_name }}"
+          npm run version:stamp
+          # Verify the version was stamped correctly
+          STAMPED_VERSION=$(node scripts/get-version.js)
+          echo "Stamped version: $STAMPED_VERSION"
+          if [ "$STAMPED_VERSION" != "$VERSION" ]; then
+            echo "ERROR: Version mismatch! Expected $VERSION but got $STAMPED_VERSION"
+            exit 1
+          fi
 
       - name: Build application
         run: npm run build

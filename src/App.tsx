@@ -6,7 +6,7 @@ import {
   ArrowLeft,
   LayoutDashboard,
 } from 'lucide-react';
-import { ProviderData } from './types';
+import { ProviderData, UpdateStatusData } from './types';
 import { styles, theme } from './theme';
 import { ProviderCard } from './components/ProviderCard';
 import { SettingsView } from './components/SettingsView';
@@ -22,6 +22,11 @@ function App() {
     z_ai: { label: 'Z.ai', connected: false, usage: null },
     claude: { label: 'Claude', connected: false, usage: null },
   });
+  const [updateStatus, setUpdateStatus] = useState<
+    UpdateStatusData['type'] | 'idle'
+  >('idle');
+  const [updateMessage, setUpdateMessage] = useState('');
+  const [updateProgress, setUpdateProgress] = useState(0);
 
   useEffect(() => {
     // Initial Status Check
@@ -126,10 +131,45 @@ function App() {
       }
     );
 
+    const removeUpdateStatusListener = window.electronAPI.onUpdateStatus
+      ? window.electronAPI.onUpdateStatus((_event, data) => {
+          switch (data.type) {
+            case 'checking':
+              setUpdateStatus('checking');
+              setUpdateMessage('Checking for updates...');
+              break;
+            case 'available':
+              setUpdateStatus('available');
+              setUpdateMessage(`Version ${data.version} available!`);
+              break;
+            case 'not-available':
+              setUpdateStatus('idle');
+              setUpdateMessage('Up to date');
+              break;
+            case 'error':
+              setUpdateStatus('error');
+              setUpdateMessage(data.error || 'Update check failed');
+              break;
+            case 'downloading':
+              setUpdateStatus('downloading');
+              setUpdateMessage(
+                `Downloading... ${data.progress?.percent || 0}%`
+              );
+              setUpdateProgress(data.progress?.percent || 0);
+              break;
+            case 'downloaded':
+              setUpdateStatus('downloaded');
+              setUpdateMessage(`Version ${data.version} ready to install!`);
+              break;
+          }
+        })
+      : () => {};
+
     return () => {
       removeConnectListener();
       removeDisconnectListener();
       removeUsageListener();
+      removeUpdateStatusListener();
     };
   }, []);
 
@@ -169,6 +209,16 @@ function App() {
     const val = parseInt(e.target.value);
     setRefreshInterval(val);
     window.electronAPI.setRefreshInterval(val);
+  };
+
+  const handleCheckForUpdate = () => {
+    setUpdateStatus('checking');
+    setUpdateMessage('Checking for updates...');
+    window.electronAPI.checkForUpdate();
+  };
+
+  const handleQuitAndInstall = () => {
+    window.electronAPI.quitAndInstall();
   };
 
   const connectProvider = (key: string) => {
@@ -277,6 +327,11 @@ function App() {
             providers={providers}
             onConnect={connectProvider}
             onReconnect={handleReconnect}
+            updateStatus={updateStatus}
+            updateMessage={updateMessage}
+            updateProgress={updateProgress}
+            onCheckUpdate={handleCheckForUpdate}
+            onQuitAndInstall={handleQuitAndInstall}
           />
         )}
       </div>

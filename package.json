@@ -1,7 +1,8 @@
 {
   "name": "coding-plan-usage",
   "type": "module",
-  "version": "0.0.5",
+  "version": "0.0.5-dirty",
+  "//version": "AUTO-GENERATED from git tags - DO NOT EDIT. See .versionrc.md",
   "description": "Usage Tray App",
   "author": {
     "name": "Usage Tray Developer",
@@ -14,6 +15,8 @@
   "homepage": "https://github.com/dan-jeff/coding-plan-usage",
   "main": "dist-electron/main.cjs",
   "scripts": {
+    "version:stamp": "node scripts/stamp-version.js",
+    "version:get": "node scripts/get-version.js",
     "build:preload": "tsc electron/preload.ts --target es2020 --module commonjs --moduleResolution node --outDir dist-electron --esModuleInterop --skipLibCheck && mv dist-electron/preload.js dist-electron/preload.cjs",
     "build:electron": "vite build -c vite.electron.config.ts && cp -r electron/assets dist-electron/",
     "build": "npm run build:electron && npm run build:preload && tsc && vite build",
@@ -23,7 +26,9 @@
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write .",
     "dev": "npm run build:preload && concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env NODE_ENV=development NODE_OPTIONS='--import tsx' electron electron/main.ts --no-sandbox\"",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prebuild": "npm run version:stamp",
+    "predist": "npm run version:stamp"
   },
   "build": {
     "publish": [

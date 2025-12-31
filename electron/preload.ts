@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getRefreshInterval: () => ipcRenderer.invoke('get-refresh-interval'),
   setRefreshInterval: (minutes: number) =>
     ipcRenderer.send('set-refresh-interval', minutes),
+  checkForUpdate: () => ipcRenderer.send('check-for-update'),
+  quitAndInstall: () => ipcRenderer.send('quit-and-install'),
   refreshUsage: () => ipcRenderer.send('refresh-usage'),
   quitApp: () => ipcRenderer.send('quit-app'),
   getProviderStatus: () => ipcRenderer.invoke('get-provider-status'),
@@ -46,6 +48,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('usage-update', callback);
     return () => {
       ipcRenderer.removeListener('usage-update', callback);
+    };
+  },
+  onUpdateStatus: (callback: (event: IpcRendererEvent, data: any) => void) => {
+    ipcRenderer.on('update-status', callback);
+    return () => {
+      ipcRenderer.removeListener('update-status', callback);
     };
   },
 });

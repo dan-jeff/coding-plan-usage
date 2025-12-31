@@ -1,3 +1,20 @@
+export interface UpdateStatusData {
+  type:
+    | 'checking'
+    | 'available'
+    | 'not-available'
+    | 'error'
+    | 'downloading'
+    | 'downloaded';
+  version?: string;
+  error?: string;
+  progress?: {
+    percent: number;
+    transferred: number;
+    total: number;
+  };
+}
+
 export interface UsageDetail {
   label: string;
   percentage: number;
@@ -42,6 +59,11 @@ declare global {
       getRefreshInterval: () => Promise<number>;
       setRefreshInterval: (minutes: number) => void;
       quitApp: () => void;
+      checkForUpdate: () => void;
+      quitAndInstall: () => void;
+      onUpdateStatus: (
+        callback: (event: any, data: UpdateStatusData) => void
+      ) => () => void;
     };
   }
 }
