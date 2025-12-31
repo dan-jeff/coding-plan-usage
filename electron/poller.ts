@@ -168,7 +168,8 @@ function fetchUsage(
         try {
           if (
             key.toLowerCase() !== 'content-length' &&
-            key.toLowerCase() !== 'host'
+            key.toLowerCase() !== 'host' &&
+            key.toLowerCase() !== 'cookie'
           ) {
             request.setHeader(key, value);
           }

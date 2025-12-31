@@ -242,8 +242,18 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
       clearTimeout(fallbackTimeout);
       fallbackTimeout = null;
     }
+
+    // Filter out cookie header to rely on session
+    const cleanHeaders = { ...candidate.headers };
+    Object.keys(cleanHeaders).forEach((k) => {
+      if (k.toLowerCase() === 'cookie') {
+        delete cleanHeaders[k];
+      }
+    });
+
     console.log(`Successfully captured ${p} session from ${candidate.url}`);
-    saveSession(p, candidate);
+    saveSession(p, { url: candidate.url, headers: cleanHeaders }); // Use cleanHeaders
+
     if (!authWindow.isDestroyed()) {
       authWindow.close();
     }
