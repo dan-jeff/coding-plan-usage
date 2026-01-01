@@ -64,14 +64,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Stamp version from tag
-        shell: bash
-        run: |
-          npm run version:stamp
-          echo "Stamped version: $(node scripts/get-version.js)"
-
       - name: Build application
         run: npm run build
+        env:
+          CI: 'true'
+          VERSION: ${{ needs.create-release.outputs.version }}
 
       - name: Build installer for ${{ matrix.platform }}
         run: npx electron-builder --${{ matrix.platform }} --publish never

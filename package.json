@@ -27,8 +27,8 @@
     "format": "prettier --write .",
     "dev": "npm run build:preload && concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env NODE_ENV=development NODE_OPTIONS='--import tsx' electron electron/main.ts --no-sandbox\"",
     "preview": "vite preview",
-    "prebuild": "npm run version:stamp",
-    "predist": "npm run version:stamp"
+    "prebuild": "node -e \"process.env.CI || require('child_process').execSync('npm run version:stamp', {stdio: 'inherit'})\"",
+    "predist": "node -e \"process.env.CI || require('child_process').execSync('npm run version:stamp', {stdio: 'inherit'})\""
   },
   "build": {
     "publish": [
