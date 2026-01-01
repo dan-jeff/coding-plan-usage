@@ -83,5 +83,7 @@ jobs:
             dist_electron_build/*.AppImage
             dist_electron_build/*.deb
             dist_electron_build/*.exe
+            dist_electron_build/*.yml
+            dist_electron_build/*.blockmap
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
