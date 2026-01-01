@@ -56,4 +56,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('update-status', callback);
     };
   },
+  getLogs: () => ipcRenderer.invoke('get-logs'),
+  clearLogs: () => ipcRenderer.invoke('clear-logs'),
+  onLogEntry: (callback: (event: IpcRendererEvent, entry: any) => void) => {
+    ipcRenderer.on('log-entry', callback);
+    return () => {
+      ipcRenderer.removeListener('log-entry', callback);
+    };
+  },
 });

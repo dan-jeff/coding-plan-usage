@@ -21,20 +21,19 @@ import {
   getSetting,
   setSetting,
 } from './secure-store.js';
+import { debug, info, warn, error, getAllLogs, clearLogs } from './logger.js';
 
 const _dirname =
   typeof __dirname !== 'undefined'
     ? __dirname
     : dirname(fileURLToPath(import.meta.url));
 
-autoUpdater.logger = console;
-
 const autoLauncher = new AutoLaunch({
   name: 'Coding Usage',
   path: app.getPath('exe'),
 });
 
-console.log('--- MAIN PROCESS STARTING ---');
+info('--- MAIN PROCESS STARTING ---');
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -45,7 +44,7 @@ function createWindow() {
       ? path.join(_dirname, '../dist-electron/preload.cjs')
       : path.join(_dirname, 'preload.cjs');
 
-  console.log('Preload path:', preloadPath);
+  debug('Preload path', { preloadPath });
 
   mainWindow = new BrowserWindow({
     width: 400,
@@ -216,11 +215,13 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
   try {
     authWindow.webContents.debugger.attach('1.3');
   } catch (err) {
-    console.log('Debugger attach failed: ', err);
+    warn('Debugger attach failed', {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   authWindow.webContents.debugger.on('detach', (event, reason) => {
-    console.log('Debugger detached due to: ', reason);
+    debug('Debugger detached', { reason });
   });
 
   const requestHeadersMap = new Map<string, Record<string, string>>();
@@ -251,7 +252,7 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
       }
     });
 
-    console.log(`Successfully captured ${p} session from ${candidate.url}`);
+    info('Successfully captured session', { provider: p, url: candidate.url });
     saveSession(p, { url: candidate.url, headers: cleanHeaders }); // Use cleanHeaders
 
     if (!authWindow.isDestroyed()) {
@@ -276,10 +277,10 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
 
         if (provider === 'z_ai' && isZaiUsagePage) {
           hasNavigatedToUsagePage = true;
-          console.log('User navigated to Z.ai subscription page');
+          info('User navigated to usage page', { provider: 'z_ai' });
         } else if (provider === 'claude' && isClaudeUsagePage) {
           hasNavigatedToUsagePage = true;
-          console.log('User navigated to Claude usage page');
+          info('User navigated to usage page', { provider: 'claude' });
         }
       }
 
@@ -297,7 +298,7 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
             url.includes('/api/biz/subscription/list') ||
             url.includes('/usage');
           if (isZaiApi) {
-            console.log('Z.ai candidate URL:', url);
+            debug('Z.ai candidate URL', { url });
             interestingRequests.set(requestId, url);
           }
         } else if (provider === 'claude') {
@@ -313,7 +314,7 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
             url.includes('_next/static');
 
           if (isClaudeApi && !isStatic) {
-            console.log('Claude candidate URL:', url);
+            debug('Claude candidate URL', { url });
             interestingRequests.set(requestId, url);
           }
         }
@@ -332,7 +333,7 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
             );
 
             if (!body) {
-              console.log(`Empty body for ${url}, skipping`);
+              debug('Empty body, skipping', { url });
               return;
             }
 
@@ -361,29 +362,32 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
             }
 
             if (score > 0) {
-              console.log(`Candidate ${url} scored ${score}`);
+              debug('Candidate scored', { url, score });
               if (!bestCandidate || score > bestCandidate.score) {
                 bestCandidate = { url, headers: headers || {}, body, score };
-                console.log('New best candidate found!');
+                debug('New best candidate found', { url, score });
               }
 
               // High score threshold for immediate capture
               if (score >= 35) {
-                console.log('High-score match found, finishing capture.');
+                info('High-score match found, finishing capture', {
+                  url,
+                  score,
+                });
                 handleCaptureComplete(provider, {
                   url,
                   headers: headers || {},
                 });
               } else if (!fallbackTimeout) {
-                console.log(
-                  'Medium-score candidate found, starting 5s fallback timeout'
+                info(
+                  'Medium-score candidate found, starting 5s fallback timeout',
+                  { url, score }
                 );
                 fallbackTimeout = setTimeout(() => {
                   if (bestCandidate && !authWindow.isDestroyed()) {
-                    console.log(
-                      'Fallback timeout reached, using best candidate:',
-                      bestCandidate.url
-                    );
+                    info('Fallback timeout reached, using best candidate', {
+                      url: bestCandidate.url,
+                    });
                     handleCaptureComplete(provider, {
                       url: bestCandidate.url,
                       headers: bestCandidate.headers,
@@ -393,7 +397,10 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
               }
             }
           } catch (e) {
-            console.error(`Error retrieving body for ${url}:`, e);
+            error('Error retrieving body', {
+              url,
+              error: e instanceof Error ? e.message : String(e),
+            });
           }
           interestingRequests.delete(requestId);
         }
@@ -435,7 +442,7 @@ ipcMain.on('set-auto-launch', async (event, enable) => {
 });
 
 ipcMain.on('connect-provider', (event, provider) => {
-  console.log(`Connect request for provider: ${provider}`);
+  info('Connect request for provider', { provider });
   if (provider === 'z_ai' || provider === 'claude') {
     authenticateProvider(provider);
   }
@@ -455,7 +462,7 @@ ipcMain.on('refresh-usage', () => {
 });
 
 ipcMain.on('disconnect-provider', (event, provider) => {
-  console.log(`Disconnect request for provider: ${provider}`);
+  info('Disconnect request for provider', { provider });
   if (provider === 'z_ai' || provider === 'claude') {
     deleteSession(provider);
     mainWindow?.webContents.send('provider-disconnected', provider);
@@ -488,6 +495,14 @@ ipcMain.handle('get-auto-update', () => {
 
 ipcMain.on('set-auto-update', (event, enable) => {
   setSetting('autoUpdate', enable);
+});
+
+ipcMain.handle('get-logs', () => {
+  return getAllLogs();
+});
+
+ipcMain.on('clear-logs', () => {
+  clearLogs();
 });
 
 autoUpdater.on('checking-for-update', () => {
@@ -538,7 +553,7 @@ ipcMain.on('check-for-update', async () => {
     if (process.env.NODE_ENV === 'development') {
       // In development, we might not have a valid update configuration
       // Simulate a check with a delay to verify UI behavior
-      console.log('Development mode: Simulating update check...');
+      info('Development mode: Simulating update check');
       mainWindow?.webContents.send('update-status', { type: 'checking' });
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
@@ -551,9 +566,9 @@ ipcMain.on('check-for-update', async () => {
       return;
     }
 
-    console.log('Checking for updates...');
+    info('Checking for updates');
     const result = await autoUpdater.checkForUpdates();
-    console.log('Update check result:', result);
+    debug('Update check result', { result });
     // Note: checkForUpdates() returns a Promise that resolves to UpdateCheckResult | null
     // If null, it means check was cancelled or no update info found.
     // Events like 'update-available' or 'update-not-available' should fire independently.
@@ -563,7 +578,9 @@ ipcMain.on('check-for-update', async () => {
       // Usually it throws if it fails.
     }
   } catch (err) {
-    console.error('Error checking for updates:', err);
+    error('Error checking for updates', {
+      error: err instanceof Error ? err.message : String(err),
+    });
     mainWindow?.webContents.send('update-status', {
       type: 'error',
       error: err instanceof Error ? err.message : String(err),

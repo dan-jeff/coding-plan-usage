@@ -6,7 +6,7 @@ import {
   ArrowLeft,
   LayoutDashboard,
 } from 'lucide-react';
-import { ProviderData, UpdateStatusData } from './types';
+import { ProviderData, UpdateStatusData, LogEntry } from './types';
 import { styles, theme } from './theme';
 import { ProviderCard } from './components/ProviderCard';
 import { SettingsView } from './components/SettingsView';
@@ -27,6 +27,7 @@ function App() {
   >('idle');
   const [updateMessage, setUpdateMessage] = useState('');
   const [updateProgress, setUpdateProgress] = useState(0);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
 
   useEffect(() => {
     // Initial Status Check
@@ -88,6 +89,19 @@ function App() {
       }
     };
     loadRefreshInterval();
+
+    // Load Logs
+    const loadLogs = async () => {
+      try {
+        if (window.electronAPI.getLogs) {
+          const allLogs = await window.electronAPI.getLogs();
+          setLogs(allLogs);
+        }
+      } catch (err) {
+        console.error('Failed to load logs', err);
+      }
+    };
+    loadLogs();
 
     // Listeners
     const removeConnectListener = window.electronAPI.onProviderConnected(
@@ -165,11 +179,18 @@ function App() {
         })
       : () => {};
 
+    const removeLogListener = window.electronAPI.onLogEntry
+      ? window.electronAPI.onLogEntry((_event, entry) => {
+          setLogs((prev) => [...prev, entry]);
+        })
+      : () => {};
+
     return () => {
       removeConnectListener();
       removeDisconnectListener();
       removeUsageListener();
       removeUpdateStatusListener();
+      removeLogListener();
     };
   }, []);
 
@@ -219,6 +240,29 @@ function App() {
 
   const handleQuitAndInstall = () => {
     window.electronAPI.quitAndInstall();
+  };
+
+  const handleRefreshLogs = () => {
+    const loadLogs = async () => {
+      try {
+        if (window.electronAPI.getLogs) {
+          const allLogs = await window.electronAPI.getLogs();
+          setLogs(allLogs);
+        }
+      } catch (err) {
+        console.error('Failed to load logs', err);
+      }
+    };
+    loadLogs();
+  };
+
+  const handleClearLogs = async () => {
+    try {
+      await window.electronAPI.clearLogs();
+      setLogs([]);
+    } catch (err) {
+      console.error('Failed to clear logs', err);
+    }
   };
 
   const connectProvider = (key: string) => {
@@ -332,6 +376,9 @@ function App() {
             updateProgress={updateProgress}
             onCheckUpdate={handleCheckForUpdate}
             onQuitAndInstall={handleQuitAndInstall}
+            logs={logs}
+            onRefreshLogs={handleRefreshLogs}
+            onClearLogs={handleClearLogs}
           />
         )}
       </div>

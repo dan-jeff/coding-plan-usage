@@ -1,3 +1,10 @@
+export interface LogEntry {
+  timestamp: string;
+  level: 'debug' | 'info' | 'warn' | 'error';
+  message: string;
+  context?: any;
+}
+
 export interface UpdateStatusData {
   type:
     | 'checking'
@@ -63,6 +70,11 @@ declare global {
       quitAndInstall: () => void;
       onUpdateStatus: (
         callback: (event: any, data: UpdateStatusData) => void
+      ) => () => void;
+      getLogs: () => Promise<LogEntry[]>;
+      clearLogs: () => Promise<void>;
+      onLogEntry: (
+        callback: (event: any, entry: LogEntry) => void
       ) => () => void;
     };
   }

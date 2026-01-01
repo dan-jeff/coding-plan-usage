@@ -13,6 +13,7 @@ import {
   getSetting,
   type ProviderConfig,
 } from './secure-store.js';
+import { debug, info, warn, error } from './logger.js';
 
 let pollingIntervalId: NodeJS.Timeout | null = null;
 let currentIntervalMinutes: number = 15;
@@ -82,59 +83,63 @@ function schedulePolling(tray: Tray) {
     () => refreshAll(tray),
     currentIntervalMinutes * 60 * 1000
   );
-  console.log('Polling scheduled every', currentIntervalMinutes, 'minutes');
+  info(`Polling scheduled every ${currentIntervalMinutes} minutes`);
 }
 
 export function updatePollingInterval(tray: Tray, minutes: number) {
   currentIntervalMinutes = minutes;
   schedulePolling(tray);
-  console.log('Polling interval updated to', minutes, 'minutes');
+  info(`Polling interval updated to ${minutes} minutes`);
 }
 
 export async function refreshAll(tray: Tray) {
-  console.log('Starting poll cycle...');
+  info('Starting poll cycle...');
   const results: PollResult[] = [];
 
   // Z.ai
   const zConfig = getSession('z_ai');
   if (zConfig) {
+    debug('Z.ai is configured, fetching usage');
     try {
       const result = await fetchUsage(zConfig);
       results.push({ provider: 'z_ai', ...result });
       notifyUsageUpdate('z_ai', result.usage, result.details);
-    } catch (error) {
-      console.error('Error fetching Z.ai usage:', error);
+    } catch (err) {
+      const errorStr = String(err);
+      error(`Error fetching Z.ai usage: ${errorStr}`);
       results.push({
         provider: 'z_ai',
         usage: 'Error',
         details: [],
-        error: String(error),
+        error: errorStr,
       });
       notifyUsageUpdate('z_ai', 'Error', []);
     }
   } else {
-    // Not configured
+    debug('Z.ai is not configured');
   }
 
   // Claude
   const claudeConfig = getSession('claude');
   if (claudeConfig) {
+    debug('Claude is configured, fetching usage');
     try {
       const result = await fetchUsage(claudeConfig);
       results.push({ provider: 'claude', ...result });
       notifyUsageUpdate('claude', result.usage, result.details);
-    } catch (error) {
-      console.error('Error fetching Claude usage:', error);
+    } catch (err) {
+      const errorStr = String(err);
+      error(`Error fetching Claude usage: ${errorStr}`);
       results.push({
         provider: 'claude',
         usage: 'Error',
         details: [],
-        error: String(error),
+        error: errorStr,
       });
       notifyUsageUpdate('claude', 'Error', []);
     }
   } else {
-    // Not configured
+    debug('Claude is not configured');
   }
 
   updateTray(tray, results);
@@ -155,6 +160,7 @@ function fetchUsage(
   config: ProviderConfig
 ): Promise<{ usage: string | null; details: UsageDetail[] }> {
   return new Promise((resolve, reject) => {
+    debug(`Fetching usage from URL: ${config.url}`);
     const request = net.request({
       url: config.url,
       useSessionCookies: true, // In case cookies are needed
@@ -174,7 +180,7 @@ function fetchUsage(
             request.setHeader(key, value);
           }
         } catch (e) {
-          console.warn(`Could not set header ${key}:`, e);
+          warn(`Could not set header ${key}: ${e}`);
         }
       }
     }
@@ -182,15 +188,33 @@ function fetchUsage(
     let responseBody = '';
 
     request.on('response', (response) => {
+      const contentType = response.headers['content-type'] || 'unknown';
+      debug(
+        `Response received: status ${response.statusCode}, content-type: ${contentType}`
+      );
+
       response.on('data', (chunk) => {
         responseBody += chunk.toString();
       });
 
       response.on('end', () => {
+        debug(`Response complete: total length ${responseBody.length} bytes`);
+
         if (response.statusCode >= 200 && response.statusCode < 300) {
-          const parsed = parseUsage(responseBody);
-          resolve(parsed);
+          try {
+            const parsed = parseUsage(responseBody);
+            resolve(parsed);
+          } catch (err) {
+            const errorStr = String(err);
+            error(
+              `Failed to parse response body. First 500 chars: ${responseBody.slice(0, 500)}`
+            );
+            reject(new Error(`Parse error: ${errorStr}`));
+          }
         } else {
+          error(
+            `HTTP error: status ${response.statusCode}. First 500 chars: ${responseBody.slice(0, 500)}`
+          );
           reject(new Error(`Status code: ${response.statusCode}`));
         }
       });
@@ -213,9 +237,12 @@ function parseUsage(body: string): {
   details: UsageDetail[];
 } {
   try {
+    debug('Parsing response as JSON...');
     const json = JSON.parse(body);
+    debug('JSON parse succeeded');
 
     const matches = findAllUsages(json);
+    debug(`Found ${matches.length} usage matches in JSON`);
 
     // Heuristic: Override labels based on reset time
     for (const match of matches) {
@@ -349,18 +376,21 @@ function parseUsage(body: string): {
         extraText = ` (Resets in ${windowMetric.displayReset})`;
       }
 
+      debug(
+        `Parsed usage: ${percentage}%${extraText}, Token Usage: ${detailsMap['Token Usage'].percentage}%, 5-Hour Window: ${detailsMap['5-Hour Window'].percentage}%`
+      );
       return {
         usage: `${percentage}%${extraText}`,
         details,
       };
     }
 
+    debug('No usage data found in JSON');
     return { usage: null, details };
   } catch {
     // Not JSON, continue to regex
-    console.log(
-      'JSON parse failed or not a JSON object, checking regex fallback.'
-    );
+    warn('JSON parse failed or not a JSON object, checking regex fallback');
+    warn(`First 500 chars of body: ${body.slice(0, 500)}`);
   }
 
   // Fallback: Regex search on the raw string
@@ -369,6 +399,7 @@ function parseUsage(body: string): {
   const match = body.match(regex);
   if (match) {
     const p = Math.round(Number(match[1]));
+    debug(`Regex fallback found value: ${p}%`);
     const details = [
       {
         label: 'Token Usage',
@@ -391,6 +422,7 @@ function parseUsage(body: string): {
     };
   }
 
+  debug('Regex fallback found no matches');
   return { usage: null, details: [] };
 }
 
@@ -653,7 +685,7 @@ function updateTrayIcon(tray: Tray, color: string) {
     const img = nativeImage.createFromDataURL(base64String);
     tray.setImage(img);
   } catch (e) {
-    console.error('Failed to update tray icon:', e);
+    error(`Failed to update tray icon: ${e}`);
   }
 }
 
@@ -679,7 +711,7 @@ function checkHighUsage(result: PollResult | undefined) {
         body: `${result.provider === 'z_ai' ? 'Z.ai' : 'Claude'} is at ${result.usage} usage.`,
       }).show();
 
-      console.log(`High Usage Alert: ${result.provider} is at ${result.usage}`);
+      info(`High Usage Alert: ${result.provider} is at ${result.usage}`);
 
       // Mark as notified so we don't spam
       notifiedState[providerKey] = true;

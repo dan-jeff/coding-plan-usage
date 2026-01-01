@@ -1,5 +1,6 @@
 import { safeStorage } from 'electron';
 import Store from 'electron-store';
+import { debug, info, warn, error } from './logger.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const store = new Store<any>();
@@ -17,7 +18,7 @@ interface StoredProviderConfig {
 
 export function saveSession(provider: 'z_ai' | 'claude', data: ProviderConfig) {
   if (!safeStorage.isEncryptionAvailable()) {
-    console.warn('Encryption not available, saving in plain text');
+    warn('Encryption not available, saving in plain text', { provider });
     store.set(`${provider}_config`, data);
     return;
   }
@@ -33,9 +34,12 @@ export function saveSession(provider: 'z_ai' | 'claude', data: ProviderConfig) {
     };
 
     store.set(`${provider}_config`, storedData);
-    console.log(`Saved encrypted session for ${provider}`);
-  } catch (error) {
-    console.error(`Failed to encrypt session for ${provider}:`, error);
+    info('Saved encrypted session', { provider, success: true });
+  } catch (err) {
+    error('Failed to encrypt session', {
+      provider,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 
@@ -48,13 +52,13 @@ export function getSession(provider: 'z_ai' | 'claude'): ProviderConfig | null {
 
   // Handle legacy plain text (object)
   if (typeof stored.headers !== 'string') {
-    console.log(`Loaded plain text (legacy) session for ${provider}`);
+    info('Loaded plain text (legacy) session', { provider });
     return stored as ProviderConfig;
   }
 
   // It is a string, so it's encrypted
   if (!safeStorage.isEncryptionAvailable()) {
-    console.error('Encryption not available, cannot decrypt session');
+    error('Encryption not available, cannot decrypt session', { provider });
     return null;
   }
 
@@ -63,12 +67,16 @@ export function getSession(provider: 'z_ai' | 'claude'): ProviderConfig | null {
     const decryptedString = safeStorage.decryptString(encryptedBuffer);
     const headers = JSON.parse(decryptedString);
 
+    debug('Decrypted session successfully', { provider });
     return {
       url: stored.url,
       headers,
     };
-  } catch (error) {
-    console.error(`Failed to decrypt session for ${provider}:`, error);
+  } catch (err) {
+    error('Failed to decrypt session', {
+      provider,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return null; // Treat as not configured
   }
 }
@@ -79,7 +87,7 @@ export function hasSession(provider: 'z_ai' | 'claude'): boolean {
 
 export function deleteSession(provider: 'z_ai' | 'claude'): void {
   store.delete(`${provider}_config`);
-  console.log(`Deleted session for ${provider}`);
+  info('Deleted session', { provider });
 }
 
 export function getSetting<T>(key: string, defaultValue: T): T {
