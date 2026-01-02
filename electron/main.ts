@@ -11,6 +11,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { existsSync } from 'fs';
+import { exec, spawn } from 'child_process';
 import AutoLaunch from 'auto-launch';
 import electronUpdater from 'electron-updater';
 const { autoUpdater } = electronUpdater;
@@ -475,6 +476,96 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
 
   authWindow.webContents.debugger.sendCommand('Network.enable');
 }
+
+// Get all provider CLI commands
+ipcMain.handle('get-provider-commands', () => {
+  return getSetting('providerCommands', {
+    z_ai: '',
+    claude: '',
+  });
+});
+
+// Set CLI command for a specific provider
+ipcMain.on('set-provider-command', (event, { provider, command }) => {
+  const commands = getSetting('providerCommands', {
+    z_ai: '',
+    claude: '',
+  }) as Record<string, string>;
+  commands[provider] = command;
+  setSetting('providerCommands', commands);
+  info('Provider command updated', { provider, command });
+});
+
+// Start a session by executing the CLI command
+ipcMain.on('start-session', async (event, provider) => {
+  info('Start session requested', { provider });
+
+  // Validate provider
+  if (!provider || typeof provider !== 'string') {
+    error('Invalid provider received', { providerType: typeof provider });
+    return;
+  }
+
+  let commands: Record<string, string>;
+  try {
+    commands = getSetting('providerCommands', {
+      z_ai: '',
+      claude: '',
+    }) as Record<string, string>;
+  } catch (err) {
+    error('Failed to load commands', {
+      error: String(err),
+    });
+    return;
+  }
+
+  const command = commands[provider];
+
+  if (!command || typeof command !== 'string' || command.trim() === '') {
+    warn('No command configured', { provider });
+    return;
+  }
+
+  const trimmedCommand = command.trim();
+  info('Preparing to spawn command', { provider, command: trimmedCommand });
+
+  try {
+    const isWindows = process.platform === 'win32';
+    const shell = isWindows ? 'cmd.exe' : '/bin/sh';
+    const shellArgs = isWindows
+      ? ['/c', trimmedCommand]
+      : ['-c', trimmedCommand];
+
+    // Spawn command in background, detached
+    const child = spawn(shell, shellArgs, {
+      detached: true,
+      stdio: 'ignore',
+      shell: false,
+    });
+
+    // Handle potential immediate spawn errors
+    child.on('error', (spawnError) => {
+      error('Spawn error occurred', {
+        provider,
+        error: spawnError.message,
+        name: spawnError.name,
+      });
+    });
+
+    if (child.pid) {
+      child.unref(); // Allow parent to exit without waiting for child
+      info('Session started', { provider, pid: child.pid });
+    } else {
+      warn('Session started but no PID returned', { provider });
+    }
+  } catch (err) {
+    error('Failed to execute spawn', {
+      provider,
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+  }
+});
 
 // IPC handlers
 ipcMain.handle('get-auto-launch', async () => {

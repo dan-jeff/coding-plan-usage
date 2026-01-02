@@ -119,28 +119,6 @@ export const styles: Record<
     alignItems: 'center',
     gap: '4px',
   },
-  bottomBar: {
-    padding: '16px 20px',
-    borderTop: `1px solid ${theme.border}`,
-    backgroundColor: theme.card,
-    display: 'flex',
-    justifyContent: 'space-between',
-    gap: '12px',
-  },
-  button: {
-    flex: 1,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
-    padding: '10px',
-    borderRadius: '8px',
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: '13px',
-    fontWeight: 500,
-    transition: 'all 0.2s',
-  },
   // New Styles for Settings
   settingsSection: {
     marginBottom: '24px',

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import {
   RefreshCw,
-  Power,
   Settings,
   ArrowLeft,
   LayoutDashboard,
@@ -27,8 +26,8 @@ function App() {
     thresholdCritical: 80,
   });
   const [providers, setProviders] = useState<{ [key: string]: ProviderData }>({
-    z_ai: { label: 'Z.ai', connected: false, usage: null },
-    claude: { label: 'Claude', connected: false, usage: null },
+    z_ai: { label: 'Z.ai', connected: false, usage: null, command: '' },
+    claude: { label: 'Claude', connected: false, usage: null, command: '' },
   });
   const [updateStatus, setUpdateStatus] = useState<
     UpdateStatusData['type'] | 'idle'
@@ -63,7 +62,7 @@ function App() {
       // Calculate total desired height
       const totalHeight = frameHeight + scrollArea.scrollHeight;
 
-      if (window.electronAPI.resizeWindow) {
+      if (view === 'dashboard' && window.electronAPI.resizeWindow) {
         window.electronAPI.resizeWindow(totalHeight);
       }
     };
@@ -154,6 +153,29 @@ function App() {
       }
     };
     loadProviderOrder();
+
+    // Load Provider Commands
+    const loadProviderCommands = async () => {
+      try {
+        if (window.electronAPI.getProviderCommands) {
+          const commands = await window.electronAPI.getProviderCommands();
+          if (commands) {
+            setProviders((prev) => {
+              const updated = { ...prev };
+              Object.keys(commands).forEach((key) => {
+                if (updated[key]) {
+                  updated[key] = { ...updated[key], command: commands[key] };
+                }
+              });
+              return updated;
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load provider commands', err);
+      }
+    };
+    loadProviderCommands();
 
     const loadIconSettings = async () => {
       try {
@@ -257,14 +279,6 @@ function App() {
     setTimeout(() => setIsRefreshing(false), 3000); // Timeout
   };
 
-  const handleQuit = () => {
-    if (window.electronAPI.quitApp) {
-      window.electronAPI.quitApp();
-    } else {
-      console.log('Quit button clicked (Not implemented in preload)');
-    }
-  };
-
   const handleAutoLaunchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const checked = e.target.checked;
     setAutoLaunch(checked);
@@ -317,6 +331,16 @@ function App() {
 
   const handleDisconnect = (key: string) => {
     window.electronAPI.disconnectProvider(key);
+  };
+
+  const handleCommandChange = (key: string, command: string) => {
+    setProviders((prev) => ({
+      ...prev,
+      [key]: { ...prev[key], command },
+    }));
+    if (window.electronAPI.setProviderCommand) {
+      window.electronAPI.setProviderCommand(key, command);
+    }
   };
 
   const handleDragStart = (e: React.DragEvent, providerKey: string) => {
@@ -463,29 +487,48 @@ function App() {
           {view === 'settings' ? 'Settings' : 'Coding Plan Usage'}
         </h1>
         {view === 'dashboard' && (
-          <button
-            onClick={handleRefresh}
-            style={
-              {
-                marginLeft: 'auto',
-                background: 'none',
-                border: 'none',
-                color: theme.textSec,
-                cursor: 'pointer',
-                padding: '8px',
-                WebkitAppRegion: 'no-drag' as const,
-                display: 'flex',
-                alignItems: 'center',
-              } as React.CSSProperties
-            }
-          >
-            <RefreshCw
-              size={16}
-              style={{
-                animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
-              }}
-            />
-          </button>
+          <>
+            <button
+              onClick={handleRefresh}
+              style={
+                {
+                  marginLeft: 'auto',
+                  background: 'none',
+                  border: 'none',
+                  color: theme.textSec,
+                  cursor: 'pointer',
+                  padding: '8px',
+                  WebkitAppRegion: 'no-drag' as const,
+                  display: 'flex',
+                  alignItems: 'center',
+                } as React.CSSProperties
+              }
+            >
+              <RefreshCw
+                size={16}
+                style={{
+                  animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
+                }}
+              />
+            </button>
+            <button
+              onClick={() => setView('settings')}
+              style={
+                {
+                  background: 'none',
+                  border: 'none',
+                  color: theme.textSec,
+                  cursor: 'pointer',
+                  padding: '8px',
+                  WebkitAppRegion: 'no-drag' as const,
+                  display: 'flex',
+                  alignItems: 'center',
+                } as React.CSSProperties
+              }
+            >
+              <Settings size={16} />
+            </button>
+          </>
         )}
       </div>
 
@@ -514,61 +557,13 @@ function App() {
               onQuitAndInstall={handleQuitAndInstall}
               iconSettings={iconSettings}
               onIconSettingsChange={handleIconSettingsChange}
+              onCommandChange={handleCommandChange}
             />
           )}
         </div>
       </div>
 
-      {/* Bottom Bar */}
-      <div style={styles.bottomBar}>
-        <button
-          onClick={handleRefresh}
-          style={{
-            ...styles.button,
-            backgroundColor: 'transparent',
-            border: `1px solid ${theme.accentGreen}`,
-            color: theme.accentGreen,
-            opacity: isRefreshing ? 0.7 : 1,
-          }}
-        >
-          <RefreshCw
-            size={16}
-            className={isRefreshing ? 'spin-animation' : ''}
-            style={{
-              animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
-            }}
-          />
-          {isRefreshing ? 'Refreshing' : 'Refresh'}
-        </button>
-
-        <button
-          onClick={() => setView('settings')}
-          style={{
-            ...styles.button,
-            backgroundColor:
-              view === 'settings'
-                ? theme.accentGreen
-                : 'rgba(255,255,255,0.05)',
-            color: view === 'settings' ? '#000' : theme.textMain,
-            fontWeight: view === 'settings' ? 700 : 500,
-          }}
-        >
-          <Settings size={16} />
-          Settings
-        </button>
-
-        <button
-          onClick={handleQuit}
-          style={{
-            ...styles.button,
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            color: theme.accentRed,
-          }}
-        >
-          <Power size={16} />
-          Quit
-        </button>
-      </div>
+      {/* Bottom Bar Removed */}
 
       {/* Inline styles for keyframes */}
       <style>{`

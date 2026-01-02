@@ -43,6 +43,7 @@ export interface ProviderData {
   connected: boolean;
   usage: string | null;
   details?: UsageDetail[];
+  command?: string;
 }
 
 declare global {
@@ -91,6 +92,9 @@ declare global {
       openDebugWindow: () => void;
       getIconSettings: () => Promise<IconSettings>;
       setIconSettings: (settings: IconSettings) => void;
+      startSession: (provider: string) => void;
+      setProviderCommand: (provider: string, command: string) => void;
+      getProviderCommands: () => Promise<Record<string, string> | null>;
     };
   }
 }

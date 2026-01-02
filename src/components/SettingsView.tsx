@@ -23,6 +23,7 @@ interface SettingsViewProps {
   onQuitAndInstall: () => void;
   iconSettings: IconSettings;
   onIconSettingsChange: (settings: IconSettings) => void;
+  onCommandChange: (key: string, command: string) => void;
 }
 
 export const SettingsView = ({
@@ -44,6 +45,7 @@ export const SettingsView = ({
   onQuitAndInstall,
   iconSettings,
   onIconSettingsChange,
+  onCommandChange,
 }: SettingsViewProps) => {
   return (
     <div>
@@ -168,44 +170,80 @@ export const SettingsView = ({
       <div style={styles.settingsSection}>
         <div style={styles.sectionTitle}>Providers</div>
         {Object.entries(providers).map(([key, data]) => (
-          <div key={key} style={styles.settingRow}>
-            <div
-              style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}
-            >
-              <span style={styles.settingLabel}>{data.label}</span>
-              <span
-                style={{
-                  fontSize: '11px',
-                  color: data.connected ? theme.accentGreen : theme.textSec,
-                }}
+          <div
+            key={key}
+            style={{
+              ...styles.settingRow,
+              flexDirection: 'column',
+              alignItems: 'stretch',
+              gap: '8px',
+            }}
+          >
+            <div style={styles.settingRow}>
+              <div
+                style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}
               >
-                {data.connected ? 'Active' : 'Offline'}
-              </span>
-            </div>
-            {data.connected ? (
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  onClick={() => onReconnect(key)}
-                  style={styles.reconnectBtn}
-                >
-                  Reconnect
-                </button>
-                <button
-                  onClick={() => onDisconnect(key)}
+                <span style={styles.settingLabel}>{data.label}</span>
+                <span
                   style={{
-                    ...styles.reconnectBtn,
-                    color: theme.accentRed,
-                    borderColor: theme.accentRed,
+                    fontSize: '11px',
+                    color: data.connected ? theme.accentGreen : theme.textSec,
                   }}
                 >
-                  Disconnect
-                </button>
+                  {data.connected ? 'Active' : 'Offline'}
+                </span>
               </div>
-            ) : (
-              <button onClick={() => onConnect(key)} style={styles.connectBtn}>
-                Connect
-              </button>
-            )}
+              {data.connected ? (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => onReconnect(key)}
+                    style={styles.reconnectBtn}
+                  >
+                    Reconnect
+                  </button>
+                  <button
+                    onClick={() => onDisconnect(key)}
+                    style={{
+                      ...styles.reconnectBtn,
+                      color: theme.accentRed,
+                      borderColor: theme.accentRed,
+                    }}
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => onConnect(key)}
+                  style={styles.connectBtn}
+                >
+                  Connect
+                </button>
+              )}
+            </div>
+            <div
+              style={{
+                paddingTop: '4px',
+              }}
+            >
+              <input
+                type="text"
+                value={data.command || ''}
+                placeholder="CLI command (e.g., claude x)"
+                onChange={(e) => onCommandChange(key, e.target.value)}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  backgroundColor: theme.card,
+                  color: theme.textMain,
+                  border: `1px solid ${theme.border}`,
+                  borderRadius: '6px',
+                  padding: '8px 10px',
+                  fontSize: '12px',
+                  outline: 'none',
+                }}
+              />
+            </div>
           </div>
         ))}
       </div>

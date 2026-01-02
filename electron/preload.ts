@@ -74,4 +74,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     thresholdWarning: number;
     thresholdCritical: number;
   }) => ipcRenderer.send('set-icon-settings', settings),
+  getProviderCommands: () => ipcRenderer.invoke('get-provider-commands'),
+  setProviderCommand: (provider: string, command: string) =>
+    ipcRenderer.send('set-provider-command', { provider, command }),
+  startSession: (provider: string) =>
+    ipcRenderer.send('start-session', provider),
 });
