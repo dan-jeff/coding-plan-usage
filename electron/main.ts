@@ -37,10 +37,19 @@ const _dirname =
     ? __dirname
     : dirname(fileURLToPath(import.meta.url));
 
-const autoLauncher = new AutoLaunch({
-  name: 'Coding Usage',
-  path: app.getPath('exe'),
-});
+function getExecutablePath(): string {
+  if (process.platform === 'linux') {
+    return process.env.APPIMAGE || app.getPath('exe');
+  }
+  return app.getPath('exe');
+}
+
+function getAutoLauncher(): AutoLaunch {
+  return new AutoLaunch({
+    name: 'Coding Plan Usage',
+    path: getExecutablePath(),
+  });
+}
 
 const DEFAULT_ICON_SETTINGS = {
   thresholdWarning: 50,
@@ -470,22 +479,27 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
 // IPC handlers
 ipcMain.handle('get-auto-launch', async () => {
   if (process.platform === 'linux') {
-    return await autoLauncher.isEnabled();
+    return await getAutoLauncher().isEnabled();
   }
   return app.getLoginItemSettings().openAtLogin;
 });
 
 ipcMain.on('set-auto-launch', async (event, enable) => {
+  if (process.env.NODE_ENV === 'development') {
+    warn('Auto-launch is disabled in development mode');
+    return;
+  }
+
   if (process.platform === 'linux') {
     if (enable) {
-      await autoLauncher.enable();
+      await getAutoLauncher().enable();
     } else {
-      await autoLauncher.disable();
+      await getAutoLauncher().disable();
     }
   } else {
     app.setLoginItemSettings({
       openAtLogin: enable,
-      path: app.getPath('exe'),
+      path: getExecutablePath(),
     });
   }
 });
