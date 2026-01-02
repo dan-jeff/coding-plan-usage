@@ -244,8 +244,13 @@ function parseUsage(body: string): {
     const matches = findAllUsages(json);
     debug(`Found ${matches.length} usage matches in JSON`);
 
+    if (matches.length === 0) {
+      warn('No usage matches found in JSON');
+    }
+
     // Heuristic: Override labels based on reset time
     for (const match of matches) {
+      if (match.keySource === 'z_ai_limit_explicit') continue;
       if (match.resetTime) {
         const resetDate = new Date(match.resetTime);
         if (!isNaN(resetDate.getTime())) {
@@ -448,6 +453,33 @@ function findAllUsages(
 
   // Array: iterate
   if (Array.isArray(obj)) {
+    // Z.ai Limits Array Handler
+    if (parentKeys.includes('limits')) {
+      for (const item of obj) {
+        // Check for Z.ai limit objects
+        if (
+          item.type &&
+          (item.type === 'TOKENS_LIMIT' || item.type === 'TIME_LIMIT')
+        ) {
+          const label =
+            item.type === 'TIME_LIMIT' ? '5-Hour Window' : 'Token Usage';
+          const pct =
+            item.percentage !== undefined ? Number(item.percentage) : 0;
+          const resetTime = item.nextResetTime || item.resetTime;
+
+          matches.push({
+            value: pct,
+            label: label,
+            resetTime: resetTime,
+            limit: item.usage, // 'usage' field in this JSON seems to be the limit/total
+            used: item.currentValue,
+            keySource: 'z_ai_limit_explicit',
+          });
+        }
+      }
+      // Continue standard recursion for other items just in case
+    }
+
     for (const item of obj) {
       matches.push(...findAllUsages(item, depth + 1, parentKeys));
     }

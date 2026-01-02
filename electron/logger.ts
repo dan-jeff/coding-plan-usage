@@ -1,5 +1,11 @@
 import { BrowserWindow } from 'electron';
 
+let targetWindow: BrowserWindow | null = null;
+
+export function setTargetWindow(window: BrowserWindow | null): void {
+  targetWindow = window;
+}
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface LogEntry {
@@ -13,9 +19,17 @@ const MAX_LOG_ENTRIES = 1000;
 const logBuffer: LogEntry[] = [];
 
 function broadcastLog(entry: LogEntry): void {
-  const windows = BrowserWindow.getAllWindows();
-  if (windows.length > 0) {
-    windows[0].webContents.send('log-entry', entry);
+  const target =
+    targetWindow && !targetWindow.isDestroyed()
+      ? targetWindow
+      : BrowserWindow.getAllWindows()[0];
+  if (target) {
+    target.webContents.send('log-entry', entry);
+  } else {
+    console.log(
+      `[${entry.level.toUpperCase()}] ${entry.message}`,
+      entry.context || ''
+    );
   }
 }
 

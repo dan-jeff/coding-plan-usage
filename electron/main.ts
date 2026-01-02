@@ -10,6 +10,7 @@ import {
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { existsSync } from 'fs';
 import AutoLaunch from 'auto-launch';
 import electronUpdater from 'electron-updater';
 const { autoUpdater } = electronUpdater;
@@ -21,7 +22,15 @@ import {
   getSetting,
   setSetting,
 } from './secure-store.js';
-import { debug, info, warn, error, getAllLogs, clearLogs } from './logger.js';
+import {
+  debug,
+  info,
+  warn,
+  error,
+  getAllLogs,
+  clearLogs,
+  setTargetWindow,
+} from './logger.js';
 
 const _dirname =
   typeof __dirname !== 'undefined'
@@ -46,6 +55,12 @@ function createWindow() {
 
   debug('Preload path', { preloadPath });
 
+  if (!existsSync(preloadPath)) {
+    error('Preload file not found at path', { path: preloadPath });
+  } else {
+    debug('Preload file verified', { path: preloadPath });
+  }
+
   mainWindow = new BrowserWindow({
     width: 400,
     height: 600,
@@ -60,6 +75,8 @@ function createWindow() {
       contextIsolation: true,
     },
   });
+
+  setTargetWindow(mainWindow);
 
   // Initial position calculation
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -204,7 +221,7 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
         const banner = document.createElement('div');
         banner.id = 'usage-tracker-instruction';
         banner.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #10b981; color: white; padding: 12px 20px; text-align: center; z-index: 999999; font-family: system-ui; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(0,0,0,0.2);';
-        banner.innerHTML = 'Please navigate to your usage/subscription page to complete setup';
+        banner.innerHTML = 'Please navigate to Subscription -> Click "Usage" Tab to complete setup';
         document.body.prepend(banner);
       }
     `
@@ -214,9 +231,13 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
 
   try {
     authWindow.webContents.debugger.attach('1.3');
+    info('Debugger attached successfully', { provider });
   } catch (err) {
-    warn('Debugger attach failed', {
+    error('Debugger attach failed', {
       error: err instanceof Error ? err.message : String(err),
+      provider,
+      detail:
+        'This is critical - if this fails in production, network interception will not work',
     });
   }
 
@@ -265,6 +286,11 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
     'message',
     async (event, method, params) => {
       if (method === 'Network.requestWillBeSent') {
+        // Log ALL URLs for z.ai debugging (production only visibility)
+        if (provider === 'z_ai') {
+          debug('Z.ai Navigation', { url: params.request.url });
+        }
+
         requestHeadersMap.set(params.requestId, params.request.headers);
 
         // Track when user navigates to the usage page
@@ -276,8 +302,15 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
         const isClaudeUsagePage = pageUrl.includes('claude.ai/settings/usage');
 
         if (provider === 'z_ai' && isZaiUsagePage) {
+          debug('Checking if Z.ai usage page', {
+            url: pageUrl,
+            isMatch: isZaiUsagePage,
+          });
           hasNavigatedToUsagePage = true;
-          info('User navigated to usage page', { provider: 'z_ai' });
+          info('User navigated to usage page', {
+            provider: 'z_ai',
+            url: pageUrl,
+          });
         } else if (provider === 'claude' && isClaudeUsagePage) {
           hasNavigatedToUsagePage = true;
           info('User navigated to usage page', { provider: 'claude' });
@@ -294,9 +327,9 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
         }
 
         if (provider === 'z_ai') {
-          const isZaiApi =
-            url.includes('/api/biz/subscription/list') ||
-            url.includes('/usage');
+          // Target the specific endpoint we confirmed
+          const isZaiApi = url.includes('/api/monitor/usage/quota/limit');
+
           if (isZaiApi) {
             debug('Z.ai candidate URL', { url });
             interestingRequests.set(requestId, url);
@@ -341,14 +374,16 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
             const headers = requestHeadersMap.get(requestId);
 
             if (provider === 'z_ai') {
+              // High score for the confirmed endpoint
+              if (url.includes('/api/monitor/usage/quota/limit')) score += 50;
+
+              // Keep generic checks as backup but with lower score
               if (
                 body.includes('percent') ||
                 body.includes('quota') ||
                 body.includes('limit')
               )
-                score += 10;
-              if (url.includes('/api/biz/subscription/list')) score += 25;
-              if (url.includes('/usage')) score += 10;
+                score += 5;
             } else if (provider === 'claude') {
               if (body.includes('percent_used')) score += 10;
               if (body.includes('resets_at')) score += 10;
