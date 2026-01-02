@@ -27,6 +27,10 @@ export interface UsageDetail {
   percentage: number;
   displayReset?: string;
   timeRemainingMinutes?: number;
+  totalDurationMinutes?: number;
+  used?: number | string;
+  limit?: number | string;
+  unit?: string;
 }
 
 export interface ProviderData {
@@ -76,6 +80,7 @@ declare global {
       onLogEntry: (
         callback: (event: any, entry: LogEntry) => void
       ) => () => void;
+      resizeWindow: (height: number) => void;
     };
   }
 }

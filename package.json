@@ -1,7 +1,7 @@
 {
   "name": "coding-plan-usage",
   "type": "module",
-  "version": "0.0.12-dev.1+e682799-dirty",
+  "version": "0.0.12-dev.2+76f080b-dirty",
   "//version": "AUTO-GENERATED from git tags - DO NOT EDIT. See .versionrc.md",
   "description": "Usage Tray App",
   "author": {

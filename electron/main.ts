@@ -626,3 +626,30 @@ ipcMain.on('check-for-update', async () => {
 ipcMain.on('quit-and-install', () => {
   autoUpdater.quitAndInstall();
 });
+
+ipcMain.on('resize-window', (event, height) => {
+  if (!mainWindow) return;
+
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { workArea } = primaryDisplay;
+  const maxHeight = Math.floor(workArea.height * 0.9);
+  const newHeight = Math.min(height, maxHeight);
+
+  // We enforce a minimum height to ensure basic usability
+  const finalHeight = Math.max(newHeight, 100);
+
+  const currentBounds = mainWindow.getBounds();
+
+  // Calculate new Y position to keep bottom anchored
+  // Bottom Y = currentBounds.y + currentBounds.height
+  // New Y = Bottom Y - finalHeight
+  const bottomY = currentBounds.y + currentBounds.height;
+  const newY = bottomY - finalHeight;
+
+  mainWindow.setBounds({
+    x: currentBounds.x,
+    y: newY,
+    width: currentBounds.width,
+    height: finalHeight,
+  });
+});

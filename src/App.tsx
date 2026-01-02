@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import {
   RefreshCw,
   Power,
   Settings,
   ArrowLeft,
   LayoutDashboard,
+  X,
 } from 'lucide-react';
 import { ProviderData, UpdateStatusData, LogEntry } from './types';
 import { styles, theme } from './theme';
@@ -28,6 +29,43 @@ function App() {
   const [updateMessage, setUpdateMessage] = useState('');
   const [updateProgress, setUpdateProgress] = useState(0);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [showSetupHint, setShowSetupHint] = useState(true);
+
+  const appRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!appRef.current || !scrollAreaRef.current || !contentRef.current)
+      return;
+
+    const updateHeight = () => {
+      const scrollArea = scrollAreaRef.current;
+      const app = appRef.current;
+
+      if (!scrollArea || !app) return;
+
+      // Calculate the non-scrollable height (Header + Footer)
+      const frameHeight = app.offsetHeight - scrollArea.offsetHeight;
+
+      // Calculate total desired height
+      const totalHeight = frameHeight + scrollArea.scrollHeight;
+
+      if (window.electronAPI.resizeWindow) {
+        window.electronAPI.resizeWindow(totalHeight);
+      }
+    };
+
+    const observer = new ResizeObserver(updateHeight);
+
+    // Observe content div to detect size changes
+    observer.observe(contentRef.current);
+
+    // Initial call
+    updateHeight();
+
+    return () => observer.disconnect();
+  }, [view, providers, logs, updateStatus, showSetupHint]);
 
   useEffect(() => {
     // Initial Status Check
@@ -274,14 +312,42 @@ function App() {
     window.electronAPI.connectProvider(key);
   };
 
+  const handleDisconnect = (key: string) => {
+    window.electronAPI.disconnectProvider(key);
+  };
+
   const renderDashboard = () => {
     const connectedProviders = Object.entries(providers).filter(
       ([, data]) => data.connected
     );
 
     if (connectedProviders.length === 0) {
+      if (!showSetupHint) return null;
+
       return (
-        <div style={styles.setupCard}>
+        <div
+          style={
+            {
+              ...styles.setupCard,
+              position: 'relative',
+            } as React.CSSProperties
+          }
+        >
+          <button
+            onClick={() => setShowSetupHint(false)}
+            style={{
+              position: 'absolute',
+              top: '8px',
+              right: '8px',
+              background: 'none',
+              border: 'none',
+              color: theme.textSec,
+              cursor: 'pointer',
+              padding: '4px',
+            }}
+          >
+            <X size={16} />
+          </button>
           <LayoutDashboard
             size={40}
             color={theme.textSec}
@@ -312,7 +378,7 @@ function App() {
   };
 
   return (
-    <div style={styles.container}>
+    <div style={styles.container} ref={appRef}>
       {/* Header */}
       <div style={styles.header as React.CSSProperties}>
         {view === 'settings' ? (
@@ -356,31 +422,34 @@ function App() {
       </div>
 
       {/* Content */}
-      <div style={styles.scrollArea}>
-        {view === 'dashboard' ? (
-          renderDashboard()
-        ) : (
-          <SettingsView
-            autoLaunch={autoLaunch}
-            handleAutoLaunchChange={handleAutoLaunchChange}
-            autoUpdate={autoUpdate}
-            handleAutoUpdateChange={handleAutoUpdateChange}
-            appVersion={appVersion}
-            refreshInterval={refreshInterval}
-            handleRefreshIntervalChange={handleRefreshIntervalChange}
-            providers={providers}
-            onConnect={connectProvider}
-            onReconnect={handleReconnect}
-            updateStatus={updateStatus}
-            updateMessage={updateMessage}
-            updateProgress={updateProgress}
-            onCheckUpdate={handleCheckForUpdate}
-            onQuitAndInstall={handleQuitAndInstall}
-            logs={logs}
-            onRefreshLogs={handleRefreshLogs}
-            onClearLogs={handleClearLogs}
-          />
-        )}
+      <div style={styles.scrollArea} ref={scrollAreaRef}>
+        <div style={styles.contentContainer} ref={contentRef}>
+          {view === 'dashboard' ? (
+            renderDashboard()
+          ) : (
+            <SettingsView
+              autoLaunch={autoLaunch}
+              handleAutoLaunchChange={handleAutoLaunchChange}
+              autoUpdate={autoUpdate}
+              handleAutoUpdateChange={handleAutoUpdateChange}
+              appVersion={appVersion}
+              refreshInterval={refreshInterval}
+              handleRefreshIntervalChange={handleRefreshIntervalChange}
+              providers={providers}
+              onConnect={connectProvider}
+              onReconnect={handleReconnect}
+              onDisconnect={handleDisconnect}
+              updateStatus={updateStatus}
+              updateMessage={updateMessage}
+              updateProgress={updateProgress}
+              onCheckUpdate={handleCheckForUpdate}
+              onQuitAndInstall={handleQuitAndInstall}
+              logs={logs}
+              onRefreshLogs={handleRefreshLogs}
+              onClearLogs={handleClearLogs}
+            />
+          )}
+        </div>
       </div>
 
       {/* Bottom Bar */}

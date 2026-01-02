@@ -15,6 +15,7 @@ interface SettingsViewProps {
   providers: { [key: string]: ProviderData };
   onConnect: (key: string) => void;
   onReconnect: (key: string) => void;
+  onDisconnect: (key: string) => void;
   updateStatus: UpdateStatusData['type'] | 'idle';
   updateMessage: string;
   updateProgress: number;
@@ -36,6 +37,7 @@ export const SettingsView = ({
   providers,
   onConnect,
   onReconnect,
+  onDisconnect,
   updateStatus,
   updateMessage,
   updateProgress,
@@ -206,12 +208,24 @@ export const SettingsView = ({
               </span>
             </div>
             {data.connected ? (
-              <button
-                onClick={() => onReconnect(key)}
-                style={styles.reconnectBtn}
-              >
-                Reconnect
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => onReconnect(key)}
+                  style={styles.reconnectBtn}
+                >
+                  Reconnect
+                </button>
+                <button
+                  onClick={() => onDisconnect(key)}
+                  style={{
+                    ...styles.reconnectBtn,
+                    color: theme.accentRed,
+                    borderColor: theme.accentRed,
+                  }}
+                >
+                  Disconnect
+                </button>
+              </div>
             ) : (
               <button onClick={() => onConnect(key)} style={styles.connectBtn}>
                 Connect

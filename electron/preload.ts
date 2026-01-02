@@ -64,4 +64,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('log-entry', callback);
     };
   },
+  resizeWindow: (height: number) => ipcRenderer.send('resize-window', height),
 });

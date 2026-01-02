@@ -1,17 +1,9 @@
 import React from 'react';
 import { ProviderData } from '../types';
 import { styles, theme } from '../theme';
-import { FiveHourWindowDisplay } from './FiveHourWindowDisplay';
+import { GenericUsageDisplay } from './GenericUsageDisplay';
 
 export const ProviderCard = ({ data }: { data: ProviderData }) => {
-  const fiveHourWindow = data.details?.find(
-    (d) => d.label === '5-Hour Window'
-  ) || {
-    label: '5-Hour Window',
-    percentage: 0,
-    displayReset: 'Unavailable',
-  };
-
   return (
     <div style={styles.card}>
       <div style={styles.cardHeader}>
@@ -33,9 +25,28 @@ export const ProviderCard = ({ data }: { data: ProviderData }) => {
         </div>
       </div>
 
-      {data.connected ? (
+      {data.connected && data.details && data.details.length > 0 ? (
         <div style={{ marginTop: '8px' }}>
-          <FiveHourWindowDisplay detail={fiveHourWindow} />
+          {data.details.map((detail, index) => (
+            <div key={index} style={{ marginBottom: '16px' }}>
+              <div
+                style={{
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  marginBottom: '8px',
+                }}
+              >
+                {detail.label}
+              </div>
+              <GenericUsageDisplay detail={detail} />
+            </div>
+          ))}
+        </div>
+      ) : data.connected ? (
+        <div
+          style={{ padding: '10px 0', fontSize: '13px', color: theme.textSec }}
+        >
+          No usage data available.
         </div>
       ) : (
         <div

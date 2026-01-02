@@ -33,6 +33,7 @@ export interface UsageDetail {
   resetTime?: string; // ISO date
   displayReset?: string; // "4h 30m"
   timeRemainingMinutes?: number; // Raw minutes remaining
+  totalDurationMinutes?: number; // Total duration of the window in minutes
 }
 
 export interface PollResult {
@@ -246,143 +247,149 @@ function parseUsage(body: string): {
 
     if (matches.length === 0) {
       warn('No usage matches found in JSON');
+      return { usage: null, details: [] };
     }
 
-    // Heuristic: Override labels based on reset time
-    for (const match of matches) {
-      if (match.keySource === 'z_ai_limit_explicit') continue;
-      if (match.resetTime) {
-        const resetDate = new Date(match.resetTime);
-        if (!isNaN(resetDate.getTime())) {
-          const diff = resetDate.getTime() - Date.now();
-          // 6 hours = 21600000 ms
-          if (diff <= 21600000) {
-            match.label = '5-Hour Window';
-          } else {
-            match.label = 'Token Usage';
-          }
-        }
-      }
-    }
-
-    const detailsMap: Record<string, UsageDetail> = {
-      'Token Usage': {
-        label: 'Token Usage',
-        percentage: 0,
-        limit: '',
-        used: '',
-        displayReset: 'Unavailable',
-      },
-      '5-Hour Window': {
-        label: '5-Hour Window',
-        percentage: 0,
-        limit: '',
-        used: '',
-        displayReset: 'Unavailable',
-      },
-    };
-
+    const aggregatedDetails: Record<string, UsageDetail> = {};
     let maxUsage = 0;
-    // let relevantResetTime: string | number | null = null;
-    let foundAny = false;
+    let primaryResetTime: string | undefined;
 
     for (const match of matches) {
       let p = match.value;
-      foundAny = true;
 
-      // Heuristics
-      // Claude `percent_used` is typically 0.0-1.0
-      // `utilization` is typically 0-100
-      if (match.keySource === 'percent_used') {
-        if (p <= 1.0) p = p * 100;
+      if (match.keySource === 'percent_used' && p <= 1.0) {
+        p = p * 100;
       }
 
       if (p > maxUsage) {
         maxUsage = p;
-        // relevantResetTime = match.resetTime || null;
       }
 
-      // Determine label - use match label or derive from context
       let label = match.label;
-      if (!label) {
-        // Default: first match is token usage, second is 5-hour window
-        label =
-          detailsMap['Token Usage'].percentage === 0 &&
-          detailsMap['Token Usage'].used === ''
-            ? 'Token Usage'
-            : '5-Hour Window';
+      let totalDurationMinutes: number | undefined;
+
+      if (match.resetTime) {
+        const resetDate = new Date(match.resetTime);
+        if (!isNaN(resetDate.getTime())) {
+          const diff = resetDate.getTime() - Date.now();
+          // 5-Hour Window (<= 6 hours)
+          if (diff <= 21600000) {
+            label = '5-Hour Window';
+            totalDurationMinutes = 300;
+          }
+          // Weekly Limit (> 24h AND <= 8 days)
+          else if (diff > 86400000 && diff <= 691200000) {
+            label = 'Weekly Limit';
+            totalDurationMinutes = 10080; // 7 days * 24h * 60m
+          }
+          // Monthly Limit (> 8 days AND <= 32 days)
+          else if (diff > 691200000 && diff <= 2764800000) {
+            label = 'Monthly Limit';
+            totalDurationMinutes = 43200; // 30 days
+          } else if (!label) {
+            label = 'Token Usage';
+          }
+        }
       }
 
-      if (detailsMap[label]) {
-        let displayReset: string | undefined;
-        let timeRemainingMinutes: number | undefined;
+      if (!label) {
+        continue;
+      }
 
-        if (match.resetTime) {
-          const resetDate = new Date(match.resetTime);
-          if (!isNaN(resetDate.getTime()) && resetDate.getTime() > Date.now()) {
-            const diff = resetDate.getTime() - Date.now();
-            const totalMinutes = Math.round(diff / (1000 * 60));
-            timeRemainingMinutes = totalMinutes;
-            displayReset = formatTime(totalMinutes);
-          }
+      let displayReset: string | undefined;
+      let timeRemainingMinutes: number | undefined;
+
+      if (match.resetTime) {
+        const resetDate = new Date(match.resetTime);
+        if (!isNaN(resetDate.getTime()) && resetDate.getTime() > Date.now()) {
+          const diff = resetDate.getTime() - Date.now();
+          const totalMinutes = Math.round(diff / (1000 * 60));
+          timeRemainingMinutes = totalMinutes;
+          displayReset = formatTime(totalMinutes);
         }
+      }
 
-        const newEntry: UsageDetail = {
-          label,
-          percentage: Math.round(p),
-          limit: match.limit || '',
-          used: match.used || '',
-          resetTime: match.resetTime ? String(match.resetTime) : undefined,
-          displayReset: displayReset || 'Unavailable',
-          timeRemainingMinutes,
-        };
+      const newEntry: UsageDetail = {
+        label,
+        percentage: Math.round(p),
+        limit: match.limit || '',
+        used: match.used || '',
+        resetTime: match.resetTime ? String(match.resetTime) : undefined,
+        displayReset: displayReset || 'Unavailable',
+        timeRemainingMinutes,
+        totalDurationMinutes,
+      };
 
-        // Conflict resolution: pick the "better" match
-        const currentEntry = detailsMap[label];
-        const currentIsInitial =
-          currentEntry.percentage === 0 &&
-          currentEntry.displayReset === 'Unavailable' &&
-          currentEntry.used === '';
+      const currentEntry = aggregatedDetails[label];
+      let isBetter = true;
 
-        let isBetter = false;
-        if (currentIsInitial) {
+      if (currentEntry) {
+        const currentHasReset =
+          currentEntry.displayReset !== 'Unavailable' && currentEntry.resetTime;
+        const newHasReset =
+          newEntry.displayReset !== 'Unavailable' && newEntry.resetTime;
+
+        if (newHasReset && !currentHasReset) {
           isBetter = true;
-        } else {
-          const currentHasReset = currentEntry.displayReset !== 'Unavailable';
-          const newHasReset = newEntry.displayReset !== 'Unavailable';
-
-          if (newHasReset && !currentHasReset) {
+        } else if (!newHasReset && currentHasReset) {
+          isBetter = false;
+        } else if (newHasReset === currentHasReset) {
+          if (newEntry.percentage > currentEntry.percentage) {
             isBetter = true;
-          } else if (newHasReset === currentHasReset) {
-            // Both have reset or both don't. Prefer higher percentage.
-            if (newEntry.percentage > currentEntry.percentage) {
-              isBetter = true;
-            }
+          } else if (newEntry.percentage < currentEntry.percentage) {
+            isBetter = false;
+          } else if (
+            newEntry.limit &&
+            currentEntry.limit &&
+            newEntry.used !== '' &&
+            currentEntry.used !== ''
+          ) {
+            isBetter = false;
           }
         }
+      }
 
-        if (isBetter) {
-          detailsMap[label] = newEntry;
-        }
+      if (isBetter) {
+        aggregatedDetails[label] = newEntry;
       }
     }
 
-    const details = [detailsMap['Token Usage'], detailsMap['5-Hour Window']];
+    let details = Object.values(aggregatedDetails);
 
-    if (foundAny) {
-      const windowMetric = detailsMap['5-Hour Window'];
-      const percentage = windowMetric.percentage;
+    details.sort((a, b) => {
+      const getPriority = (d: UsageDetail): number => {
+        if (d.label === '5-Hour Window') return 0;
+        if (/week|weekly|7.day/i.test(d.label)) return 1;
+        if (/search|web|zread|mcp/i.test(d.label)) return 2;
+        return 3;
+      };
+      const priorityA = getPriority(a);
+      const priorityB = getPriority(b);
+      if (priorityA !== priorityB) return priorityA - priorityB;
+      return b.percentage - a.percentage;
+    });
+
+    const shortTermLimit = details.find((d) => d.label === '5-Hour Window');
+    const fallbackLimit = details.find(
+      (d) => d.label !== '5-Hour Window' && d.displayReset !== 'Unavailable'
+    );
+    const primaryMetric = shortTermLimit || fallbackLimit || details[0];
+
+    if (primaryMetric) {
+      const percentage = primaryMetric.percentage;
       let extraText = '';
 
       if (
-        windowMetric.displayReset &&
-        windowMetric.displayReset !== 'Unavailable'
+        primaryMetric.displayReset &&
+        primaryMetric.displayReset !== 'Unavailable'
       ) {
-        extraText = ` (Resets in ${windowMetric.displayReset})`;
+        extraText = ` (Resets in ${primaryMetric.displayReset})`;
       }
 
+      primaryResetTime = primaryMetric.resetTime;
+
       debug(
-        `Parsed usage: ${percentage}%${extraText}, Token Usage: ${detailsMap['Token Usage'].percentage}%, 5-Hour Window: ${detailsMap['5-Hour Window'].percentage}%`
+        `Parsed usage: ${percentage}%${extraText}, Details: ${details.map((d) => `${d.label}: ${d.percentage}%`).join(', ')}`
       );
       return {
         usage: `${percentage}%${extraText}`,
@@ -390,16 +397,13 @@ function parseUsage(body: string): {
       };
     }
 
-    debug('No usage data found in JSON');
+    debug('No valid usage data found in JSON');
     return { usage: null, details };
   } catch {
-    // Not JSON, continue to regex
     warn('JSON parse failed or not a JSON object, checking regex fallback');
     warn(`First 500 chars of body: ${body.slice(0, 500)}`);
   }
 
-  // Fallback: Regex search on the raw string
-  // Look for "12%" or "12.5%"
   const regex = /"(\d+(?:\.\d+)?)%"/;
   const match = body.match(regex);
   if (match) {
@@ -433,11 +437,80 @@ function parseUsage(body: string): {
 
 function formatTime(totalMinutes: number): string {
   if (totalMinutes <= 0) return 'Resetting soon';
+
+  // New logic here
+  if (totalMinutes >= 1440) {
+    const d = Math.floor(totalMinutes / 1440);
+    const h = Math.floor((totalMinutes % 1440) / 60);
+    return `${d}d ${h}h`;
+  }
+
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
   if (h === 0) return `${m}m`;
   if (m === 0) return `${h}h`;
   return `${h}h ${m}m`;
+}
+
+function deriveLabelFromKey(key: string): string {
+  const normalized = key
+    .replace(/_/g, ' ')
+    .replace(/([A-Z])/g, ' $1')
+    .trim();
+
+  const words = normalized.split(/\s+/);
+  const labelWords = words
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+
+  return labelWords;
+}
+
+function classifyLabelFromKey(key: string, parentKeys: string[]): string {
+  const keyLower = key.toLowerCase();
+  const fullContext = parentKeys.join('_').toLowerCase();
+  const lastParent =
+    parentKeys.length > 0
+      ? parentKeys[parentKeys.length - 1].toLowerCase()
+      : '';
+
+  if (
+    /session|five_hour|quota|time_limit/i.test(fullContext) ||
+    /session|five_hour|quota|time_limit/i.test(lastParent)
+  ) {
+    return '5-Hour Window';
+  }
+
+  if (
+    /week|weekly|7.day|seven.day/i.test(keyLower) ||
+    /week|weekly|7.day|seven.day/i.test(fullContext) ||
+    /week|weekly|7.day|seven.day/i.test(lastParent)
+  ) {
+    return 'Weekly Limit';
+  }
+
+  if (
+    /search|web|zread|mcp/i.test(keyLower) ||
+    /search|web|zread|mcp/i.test(fullContext) ||
+    /search|web|zread|mcp/i.test(lastParent)
+  ) {
+    if (/mcp/i.test(keyLower)) return 'MCP Usage';
+    if (/search|web/i.test(keyLower)) return 'Search Usage';
+    return deriveLabelFromKey(key);
+  }
+
+  if (
+    /token|billing|monthly|tokens_limit/i.test(fullContext) ||
+    /token|billing|monthly|tokens_limit/i.test(lastParent)
+  ) {
+    return 'Token Usage';
+  }
+
+  if (/limit|quota/i.test(keyLower) || /limit|quota/i.test(lastParent)) {
+    return deriveLabelFromKey(key);
+  }
+
+  return deriveLabelFromKey(key);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -450,13 +523,11 @@ function findAllUsages(
   if (typeof obj !== 'object' || obj === null) return [];
 
   const matches: UsageMatch[] = [];
+  const keys = Object.keys(obj);
 
-  // Array: iterate
   if (Array.isArray(obj)) {
-    // Z.ai Limits Array Handler
     if (parentKeys.includes('limits')) {
       for (const item of obj) {
-        // Check for Z.ai limit objects
         if (
           item.type &&
           (item.type === 'TOKENS_LIMIT' || item.type === 'TIME_LIMIT')
@@ -471,13 +542,12 @@ function findAllUsages(
             value: pct,
             label: label,
             resetTime: resetTime,
-            limit: item.usage, // 'usage' field in this JSON seems to be the limit/total
+            limit: item.usage,
             used: item.currentValue,
             keySource: 'z_ai_limit_explicit',
           });
         }
       }
-      // Continue standard recursion for other items just in case
     }
 
     for (const item of obj) {
@@ -486,12 +556,7 @@ function findAllUsages(
     return matches;
   }
 
-  const keys = Object.keys(obj);
-
-  // Z.ai explicit handler
   if (obj['type'] === 'TIME_LIMIT' || obj['type'] === 'TOKENS_LIMIT') {
-    // Some accounts might report 5-hour window under TOKENS_LIMIT if it's the primary constraint
-    // or if they have different internal naming. We'll stick to types for now but map carefully.
     const label =
       obj['type'] === 'TIME_LIMIT' ? '5-Hour Window' : 'Token Usage';
     const pct = obj['percentage'] !== undefined ? Number(obj['percentage']) : 0;
@@ -508,13 +573,11 @@ function findAllUsages(
     return matches;
   }
 
-  // Labeling Logic based on object properties and parent keys
-  let label: string | undefined;
   const lastParent =
     parentKeys.length > 0 ? parentKeys[parentKeys.length - 1] : '';
   const fullContext = parentKeys.join('_').toLowerCase();
 
-  // Determine label based on parent key context and keywords
+  let label: string | undefined;
   if (
     /session|five_hour|quota|time_limit/i.test(fullContext) ||
     /session|five_hour|quota|time_limit/i.test(lastParent)
@@ -533,8 +596,6 @@ function findAllUsages(
     }
   }
 
-  // 1. Look for explicit percent fields
-  // Matches "percent", "percentage", "usage_percent", "utilization"
   const percentKey = keys.find((k) =>
     /percent|percentage|usage_percent|utilization/i.test(k)
   );
@@ -549,14 +610,12 @@ function findAllUsages(
     }
 
     if (numVal !== undefined) {
-      // Look for reset time in siblings
-      const resetKey = keys.find((k) => /reset/i.test(k)); // resets_at, nextResetTime
+      const resetKey = keys.find((k) => /reset/i.test(k));
       let resetTime: string | undefined;
       if (resetKey) {
         resetTime = obj[resetKey];
       }
 
-      // Try to find used/limit in siblings for completeness
       const usedKey = keys.find(
         (k) => /used|usage/i.test(k) && k !== percentKey
       );
@@ -564,11 +623,13 @@ function findAllUsages(
       const used = usedKey ? obj[usedKey] : undefined;
       const limit = limitKey ? obj[limitKey] : undefined;
 
+      const finalLabel = label || classifyLabelFromKey(percentKey, parentKeys);
+
       matches.push({
         value: numVal,
         resetTime,
         keySource: percentKey,
-        label: label,
+        label: finalLabel,
         used,
         limit,
         keyContext: parentKeys,
@@ -576,8 +637,6 @@ function findAllUsages(
     }
   }
 
-  // 2. Look for used/limit or used/quota pair (if not already handled by percentKey check implicitly,
-  // but here we calculate percent if missing)
   if (!percentKey) {
     const usedKey = keys.find((k) => /used|usage/i.test(k));
     const limitKey = keys.find((k) => /limit|quota|total/i.test(k));
@@ -586,15 +645,16 @@ function findAllUsages(
       const used = Number(obj[usedKey]);
       const limit = Number(obj[limitKey]);
 
-      // Look for reset time
       const resetKey = keys.find((k) => /reset/i.test(k));
       const resetTime = resetKey ? obj[resetKey] : undefined;
 
       if (!isNaN(used) && !isNaN(limit) && limit > 0) {
+        const finalLabel = label || classifyLabelFromKey(usedKey, parentKeys);
+
         matches.push({
           value: (used / limit) * 100,
           keySource: 'calculated',
-          label: label,
+          label: finalLabel,
           used: obj[usedKey],
           limit: obj[limitKey],
           resetTime,
@@ -604,7 +664,6 @@ function findAllUsages(
     }
   }
 
-  // 3. Recurse into object values
   for (const key of keys) {
     matches.push(...findAllUsages(obj[key], depth + 1, [...parentKeys, key]));
   }
