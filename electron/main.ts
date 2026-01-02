@@ -145,9 +145,15 @@ function createTray() {
       // Recalculate position in case screen resolution changed or moved
       const primaryDisplay = screen.getPrimaryDisplay();
       const { workArea } = primaryDisplay;
-      // We know our fixed size
-      const x = workArea.x + workArea.width - 400;
-      const y = workArea.y + workArea.height - 600;
+
+      // Get current window size to ensure correct positioning
+      // (height might have changed due to content resizing)
+      const bounds = mainWindow?.getBounds();
+      const width = bounds?.width || 400;
+      const height = bounds?.height || 600;
+
+      const x = workArea.x + workArea.width - width;
+      const y = workArea.y + workArea.height - height;
 
       mainWindow?.setPosition(x, y);
       mainWindow?.show();
