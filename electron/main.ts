@@ -42,10 +42,16 @@ const autoLauncher = new AutoLaunch({
   path: app.getPath('exe'),
 });
 
+const DEFAULT_ICON_SETTINGS = {
+  thresholdWarning: 50,
+  thresholdCritical: 80,
+};
+
 info('--- MAIN PROCESS STARTING ---');
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+let debugWindow: BrowserWindow | null = null;
 
 function createWindow() {
   const preloadPath =
@@ -69,6 +75,7 @@ function createWindow() {
     resizable: false,
     skipTaskbar: true,
     autoHideMenuBar: true,
+    icon: path.join(_dirname, 'assets/icon.png'),
     webPreferences: {
       preload: preloadPath,
       nodeIntegration: false,
@@ -204,6 +211,7 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
     width: 1000,
     height: 800,
     autoHideMenuBar: true,
+    icon: path.join(_dirname, 'assets/icon.png'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -515,6 +523,14 @@ ipcMain.on('quit-app', () => {
   app.quit();
 });
 
+ipcMain.handle('get-provider-order', () => {
+  return getSetting('providerOrder', ['z_ai', 'claude']);
+});
+
+ipcMain.on('set-provider-order', (event, order) => {
+  setSetting('providerOrder', order);
+});
+
 ipcMain.handle('get-refresh-interval', () => {
   return getSetting('refreshInterval', 15);
 });
@@ -523,6 +539,17 @@ ipcMain.on('set-refresh-interval', (event, minutes) => {
   setSetting('refreshInterval', minutes);
   if (tray) {
     updatePollingInterval(tray, minutes);
+  }
+});
+
+ipcMain.handle('get-icon-settings', () => {
+  return getSetting('iconSettings', DEFAULT_ICON_SETTINGS);
+});
+
+ipcMain.on('set-icon-settings', (event, settings) => {
+  setSetting('iconSettings', settings);
+  if (tray) {
+    refreshAll(tray);
   }
 });
 
@@ -657,5 +684,41 @@ ipcMain.on('resize-window', (event, height) => {
     y: newY,
     width: currentBounds.width,
     height: finalHeight,
+  });
+});
+
+ipcMain.on('open-debug-window', () => {
+  if (debugWindow && !debugWindow.isDestroyed()) {
+    debugWindow.focus();
+    return;
+  }
+
+  const preloadPath =
+    process.env.NODE_ENV === 'development'
+      ? path.join(_dirname, '../dist-electron/preload.cjs')
+      : path.join(_dirname, 'preload.cjs');
+
+  debugWindow = new BrowserWindow({
+    width: 800,
+    height: 600,
+    center: true,
+    autoHideMenuBar: true,
+    icon: path.join(_dirname, 'assets/icon.png'),
+    webPreferences: {
+      preload: preloadPath,
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  const baseUrl =
+    process.env.NODE_ENV === 'development'
+      ? 'http://localhost:5173'
+      : `file://${path.join(_dirname, '../dist/index.html')}`;
+
+  debugWindow.loadURL(baseUrl + '#debug-logs');
+
+  debugWindow.on('closed', () => {
+    debugWindow = null;
   });
 });

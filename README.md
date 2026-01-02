@@ -1,6 +1,7 @@
-# Usage Tray
+# Coding Plan Usage
 
-Usage Tray is a system tray application that tracks usage quotas for Z.ai and Claude.ai. It sits quietly in your tray and provides quick access to your usage stats.
+Coding Plan Usage is a system tray application that tracks usage quotas for coding subscriptions. It sits quietly in your tray and provides quick access to your usage stats.
+Current supported providers are Z.ai and Claude.ai.
 
 ## 📋 Table of Contents
 
@@ -16,9 +17,13 @@ Usage Tray is a system tray application that tracks usage quotas for Z.ai and Cl
 
 ## 📸 Screenshots
 
-### Dashboard View
+### Dashboard View - 2 Providers
 
 ![Dashboard showing Z.ai and Claude usage stats](screenshots/dashboard.png)
+
+### Dashboard View - 1 Provider
+
+![Dashboard showing Claude usage stats](screenshots/single_provider_dashboard.png)
 
 ### Settings Panel
 
@@ -34,7 +39,7 @@ This application operates by using a secure, hidden browser window (powered by E
 
 ### Connecting Your Providers
 
-Follow these steps to connect Z.ai or Claude to the Usage Tray:
+Follow these steps to connect Z.ai or Claude to the Coding Plan Usage:
 
 1. **Open Settings**
    - Click the Settings button in the application
@@ -62,26 +67,12 @@ Follow these steps to connect Z.ai or Claude to the Usage Tray:
 
 ### Using the Application
 
-Once connected, Usage Tray will:
+Once connected, Coding Plan Usage will:
 
 - Display real-time usage statistics for connected providers
 - Show percentage used and time remaining
 - Update automatically based on your configured polling interval
 - Sit quietly in your system tray for quick access
-
-## 💻 Installation
-
-1.  Clone the repository:
-
-    ```bash
-    git clone https://github.com/dan-jeff/coding-plan-usage.git
-    cd coding-plan-usage
-    ```
-
-2.  Install dependencies:
-    ```bash
-    npm install
-    ```
 
 ## 🛠️ Development
 

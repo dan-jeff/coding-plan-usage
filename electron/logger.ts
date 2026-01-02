@@ -19,13 +19,13 @@ const MAX_LOG_ENTRIES = 1000;
 const logBuffer: LogEntry[] = [];
 
 function broadcastLog(entry: LogEntry): void {
-  const target =
-    targetWindow && !targetWindow.isDestroyed()
-      ? targetWindow
-      : BrowserWindow.getAllWindows()[0];
-  if (target) {
-    target.webContents.send('log-entry', entry);
-  } else {
+  const windows = BrowserWindow.getAllWindows();
+  windows.forEach((win) => {
+    if (!win.isDestroyed()) {
+      win.webContents.send('log-entry', entry);
+    }
+  });
+  if (windows.length === 0) {
     console.log(
       `[${entry.level.toUpperCase()}] ${entry.message}`,
       entry.context || ''

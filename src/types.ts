@@ -1,3 +1,8 @@
+export interface IconSettings {
+  thresholdWarning: number;
+  thresholdCritical: number;
+}
+
 export interface LogEntry {
   timestamp: string;
   level: 'debug' | 'info' | 'warn' | 'error';
@@ -81,6 +86,11 @@ declare global {
         callback: (event: any, entry: LogEntry) => void
       ) => () => void;
       resizeWindow: (height: number) => void;
+      getProviderOrder: () => Promise<string[]>;
+      setProviderOrder: (order: string[]) => void;
+      openDebugWindow: () => void;
+      getIconSettings: () => Promise<IconSettings>;
+      setIconSettings: (settings: IconSettings) => void;
     };
   }
 }

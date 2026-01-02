@@ -25,6 +25,16 @@ const ICON_YELLOW =
 const ICON_RED =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAAiklEQVR4nO3UzQ2AMAgG0NZV3MERHNoR3MFZ8IShLT9fjWnSRI4WHniAlGaLHCUQEamFObu15qMFog3UjxK9tl0F1/Nw8eUNWr9pf1fAKIrgzcQoGuU+MHfsQWtcTq1O/EX88ECYt0duFBpcIzdQnbgHt3ILWHZEcO9eNBOjeHSExp5NpEF06OeLGyKvRyBxHffNAAAAAElFTkSuQmCC';
 
+const DEFAULT_ICON_SETTINGS = {
+  thresholdWarning: 50,
+  thresholdCritical: 80,
+};
+
+interface IconSettings {
+  thresholdWarning: number;
+  thresholdCritical: number;
+}
+
 export interface UsageDetail {
   label: string; // e.g., "5-Hour", "7-Day"
   percentage: number; // 0-100
@@ -700,10 +710,15 @@ function updateTray(tray: Tray, results: PollResult[]) {
   const cPercent = getPercent(claudeResult?.usage || null);
   const maxUsage = Math.max(zPercent, cPercent);
 
+  const iconSettings = getSetting<IconSettings>(
+    'iconSettings',
+    DEFAULT_ICON_SETTINGS
+  );
+
   let iconColor = 'green';
-  if (maxUsage >= 80) {
+  if (maxUsage >= iconSettings.thresholdCritical) {
     iconColor = 'red';
-  } else if (maxUsage >= 50) {
+  } else if (maxUsage >= iconSettings.thresholdWarning) {
     iconColor = 'yellow';
   }
 

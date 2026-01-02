@@ -7,10 +7,12 @@ import {
   LayoutDashboard,
   X,
 } from 'lucide-react';
-import { ProviderData, UpdateStatusData, LogEntry } from './types';
+import { ProviderData, UpdateStatusData } from './types';
 import { styles, theme } from './theme';
 import { ProviderCard } from './components/ProviderCard';
 import { SettingsView } from './components/SettingsView';
+import { DebugLogView } from './components/DebugLogView';
+import type { IconSettings } from './types';
 
 function App() {
   const [view, setView] = useState<'dashboard' | 'settings'>('dashboard');
@@ -19,6 +21,11 @@ function App() {
   const [autoUpdate, setAutoUpdate] = useState(true);
   const [appVersion, setAppVersion] = useState('');
   const [refreshInterval, setRefreshInterval] = useState(15);
+  const [providerOrder, setProviderOrder] = useState<string[]>([]);
+  const [iconSettings, setIconSettings] = useState<IconSettings>({
+    thresholdWarning: 50,
+    thresholdCritical: 80,
+  });
   const [providers, setProviders] = useState<{ [key: string]: ProviderData }>({
     z_ai: { label: 'Z.ai', connected: false, usage: null },
     claude: { label: 'Claude', connected: false, usage: null },
@@ -28,12 +35,17 @@ function App() {
   >('idle');
   const [updateMessage, setUpdateMessage] = useState('');
   const [updateProgress, setUpdateProgress] = useState(0);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [showSetupHint, setShowSetupHint] = useState(true);
 
   const appRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  const isDebugView = window.location.hash === '#debug-logs';
+
+  if (isDebugView) {
+    return <DebugLogView />;
+  }
 
   useLayoutEffect(() => {
     if (!appRef.current || !scrollAreaRef.current || !contentRef.current)
@@ -65,7 +77,7 @@ function App() {
     updateHeight();
 
     return () => observer.disconnect();
-  }, [view, providers, logs, updateStatus, showSetupHint]);
+  }, [view, providers, updateStatus, showSetupHint]);
 
   useEffect(() => {
     // Initial Status Check
@@ -128,18 +140,32 @@ function App() {
     };
     loadRefreshInterval();
 
-    // Load Logs
-    const loadLogs = async () => {
+    // Load Provider Order
+    const loadProviderOrder = async () => {
       try {
-        if (window.electronAPI.getLogs) {
-          const allLogs = await window.electronAPI.getLogs();
-          setLogs(allLogs);
+        if (window.electronAPI.getProviderOrder) {
+          const order = await window.electronAPI.getProviderOrder();
+          if (order && Array.isArray(order)) {
+            setProviderOrder(order);
+          }
         }
       } catch (err) {
-        console.error('Failed to load logs', err);
+        console.error('Failed to get provider order', err);
       }
     };
-    loadLogs();
+    loadProviderOrder();
+
+    const loadIconSettings = async () => {
+      try {
+        if (window.electronAPI.getIconSettings) {
+          const settings = await window.electronAPI.getIconSettings();
+          setIconSettings(settings);
+        }
+      } catch (err) {
+        console.error('Failed to load icon settings', err);
+      }
+    };
+    loadIconSettings();
 
     // Listeners
     const removeConnectListener = window.electronAPI.onProviderConnected(
@@ -217,18 +243,11 @@ function App() {
         })
       : () => {};
 
-    const removeLogListener = window.electronAPI.onLogEntry
-      ? window.electronAPI.onLogEntry((_event, entry) => {
-          setLogs((prev) => [...prev, entry]);
-        })
-      : () => {};
-
     return () => {
       removeConnectListener();
       removeDisconnectListener();
       removeUsageListener();
       removeUpdateStatusListener();
-      removeLogListener();
     };
   }, []);
 
@@ -270,6 +289,13 @@ function App() {
     window.electronAPI.setRefreshInterval(val);
   };
 
+  const handleIconSettingsChange = (newSettings: IconSettings) => {
+    setIconSettings(newSettings);
+    if (window.electronAPI.setIconSettings) {
+      window.electronAPI.setIconSettings(newSettings);
+    }
+  };
+
   const handleCheckForUpdate = () => {
     setUpdateStatus('checking');
     setUpdateMessage('Checking for updates...');
@@ -278,29 +304,6 @@ function App() {
 
   const handleQuitAndInstall = () => {
     window.electronAPI.quitAndInstall();
-  };
-
-  const handleRefreshLogs = () => {
-    const loadLogs = async () => {
-      try {
-        if (window.electronAPI.getLogs) {
-          const allLogs = await window.electronAPI.getLogs();
-          setLogs(allLogs);
-        }
-      } catch (err) {
-        console.error('Failed to load logs', err);
-      }
-    };
-    loadLogs();
-  };
-
-  const handleClearLogs = async () => {
-    try {
-      await window.electronAPI.clearLogs();
-      setLogs([]);
-    } catch (err) {
-      console.error('Failed to clear logs', err);
-    }
   };
 
   const connectProvider = (key: string) => {
@@ -316,10 +319,66 @@ function App() {
     window.electronAPI.disconnectProvider(key);
   };
 
+  const handleDragStart = (e: React.DragEvent, providerKey: string) => {
+    e.dataTransfer.setData('text/plain', providerKey);
+    // Optional: set drag effect
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault(); // Necessary to allow dropping
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, targetProviderKey: string) => {
+    e.preventDefault();
+    const draggedProviderKey = e.dataTransfer.getData('text/plain');
+
+    if (!draggedProviderKey || draggedProviderKey === targetProviderKey) return;
+
+    const currentOrder =
+      providerOrder.length > 0 ? [...providerOrder] : Object.keys(providers);
+    const oldIndex = currentOrder.indexOf(draggedProviderKey);
+    const newIndex = currentOrder.indexOf(targetProviderKey);
+
+    // If items not in order list yet (e.g. first run), ensure they are added
+    if (oldIndex === -1) currentOrder.push(draggedProviderKey);
+    if (newIndex === -1) currentOrder.push(targetProviderKey);
+
+    // Re-calculate indices after potential pushes
+    const finalOldIndex = currentOrder.indexOf(draggedProviderKey);
+    let finalNewIndex = currentOrder.indexOf(targetProviderKey);
+
+    if (finalOldIndex > -1 && finalNewIndex > -1) {
+      const newOrder = [...currentOrder];
+      newOrder.splice(finalOldIndex, 1);
+      newOrder.splice(finalNewIndex, 0, draggedProviderKey);
+
+      setProviderOrder(newOrder);
+      if (window.electronAPI.setProviderOrder) {
+        window.electronAPI.setProviderOrder(newOrder);
+      }
+    }
+  };
+
   const renderDashboard = () => {
     const connectedProviders = Object.entries(providers).filter(
       ([, data]) => data.connected
     );
+
+    // Sort based on providerOrder
+    if (providerOrder.length > 0) {
+      connectedProviders.sort((a, b) => {
+        const indexA = providerOrder.indexOf(a[0]);
+        const indexB = providerOrder.indexOf(b[0]);
+
+        // Items not in the order list go to the end
+        const safeIndexA = indexA === -1 ? 999 : indexA;
+        const safeIndexB = indexB === -1 ? 999 : indexB;
+
+        return safeIndexA - safeIndexB;
+      });
+    }
 
     if (connectedProviders.length === 0) {
       if (!showSetupHint) return null;
@@ -371,7 +430,16 @@ function App() {
     return (
       <>
         {connectedProviders.map(([key, data]) => (
-          <ProviderCard key={key} data={data} />
+          <div
+            key={key}
+            draggable
+            onDragStart={(e) => handleDragStart(e, key)}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, key)}
+            style={{ cursor: 'grab' }}
+          >
+            <ProviderCard data={data} />
+          </div>
         ))}
       </>
     );
@@ -444,9 +512,8 @@ function App() {
               updateProgress={updateProgress}
               onCheckUpdate={handleCheckForUpdate}
               onQuitAndInstall={handleQuitAndInstall}
-              logs={logs}
-              onRefreshLogs={handleRefreshLogs}
-              onClearLogs={handleClearLogs}
+              iconSettings={iconSettings}
+              onIconSettingsChange={handleIconSettingsChange}
             />
           )}
         </div>

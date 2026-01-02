@@ -1,5 +1,5 @@
 import React from 'react';
-import { ProviderData, UpdateStatusData, LogEntry } from '../types';
+import { ProviderData, UpdateStatusData, IconSettings } from '../types';
 import { styles, theme } from '../theme';
 
 interface SettingsViewProps {
@@ -21,9 +21,8 @@ interface SettingsViewProps {
   updateProgress: number;
   onCheckUpdate: () => void;
   onQuitAndInstall: () => void;
-  logs: LogEntry[];
-  onRefreshLogs: () => void;
-  onClearLogs: () => void;
+  iconSettings: IconSettings;
+  onIconSettingsChange: (settings: IconSettings) => void;
 }
 
 export const SettingsView = ({
@@ -43,33 +42,9 @@ export const SettingsView = ({
   updateProgress,
   onCheckUpdate,
   onQuitAndInstall,
-  logs,
-  onRefreshLogs,
-  onClearLogs,
+  iconSettings,
+  onIconSettingsChange,
 }: SettingsViewProps) => {
-  const getLogColor = (level: LogEntry['level']) => {
-    switch (level) {
-      case 'error':
-        return '#ef4444';
-      case 'warn':
-        return '#f59e0b';
-      case 'info':
-        return '#22c55e';
-      case 'debug':
-        return '#6b7280';
-    }
-  };
-
-  const handleCopyLogs = () => {
-    const logText = logs
-      .map(
-        (log) =>
-          `[${log.timestamp}] [${log.level.toUpperCase()}] ${log.message}`
-      )
-      .join('\n');
-    navigator.clipboard.writeText(logText);
-  };
-
   return (
     <div>
       <div style={styles.settingsSection}>
@@ -236,86 +211,75 @@ export const SettingsView = ({
       </div>
 
       <div style={styles.settingsSection}>
+        <div style={styles.sectionTitle}>Icon Appearance</div>
+        <div
+          style={styles.settingRow}
+          title="Icon turns yellow when usage reaches this %"
+        >
+          <span style={styles.settingLabel}>Warning Threshold (%) ⓘ</span>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            value={iconSettings.thresholdWarning}
+            onChange={(e) =>
+              onIconSettingsChange({
+                ...iconSettings,
+                thresholdWarning: parseInt(e.target.value) || 0,
+              })
+            }
+            style={{
+              backgroundColor: theme.card,
+              color: theme.textMain,
+              border: `1px solid ${theme.border}`,
+              borderRadius: '6px',
+              padding: '4px 8px',
+              width: '60px',
+              fontSize: '13px',
+            }}
+          />
+        </div>
+        <div
+          style={styles.settingRow}
+          title="Icon turns red when usage reaches this %"
+        >
+          <span style={styles.settingLabel}>Critical Threshold (%) ⓘ</span>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            value={iconSettings.thresholdCritical}
+            onChange={(e) =>
+              onIconSettingsChange({
+                ...iconSettings,
+                thresholdCritical: parseInt(e.target.value) || 0,
+              })
+            }
+            style={{
+              backgroundColor: theme.card,
+              color: theme.textMain,
+              border: `1px solid ${theme.border}`,
+              borderRadius: '6px',
+              padding: '4px 8px',
+              width: '60px',
+              fontSize: '13px',
+            }}
+          />
+        </div>
+      </div>
+
+      <div style={styles.settingsSection}>
         <div style={styles.sectionTitle}>Debug Logs</div>
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-          <button
-            onClick={onRefreshLogs}
-            style={{
-              ...styles.connectBtn,
-              padding: '6px 12px',
-              fontSize: '12px',
-            }}
-          >
-            Refresh
-          </button>
-          <button
-            onClick={handleCopyLogs}
-            style={{
-              ...styles.connectBtn,
-              padding: '6px 12px',
-              fontSize: '12px',
-            }}
-          >
-            Copy to Clipboard
-          </button>
-          <button
-            onClick={onClearLogs}
-            style={{
-              ...styles.connectBtn,
-              padding: '6px 12px',
-              fontSize: '12px',
-              backgroundColor: theme.accentRed,
-            }}
-          >
-            Clear
-          </button>
-        </div>
-        <div
-          style={{
-            backgroundColor: '#2a2a3c',
-            color: '#e0e0e0',
-            fontFamily: 'monospace',
-            fontSize: '12px',
-            maxHeight: '300px',
-            overflowY: 'auto',
-            padding: '8px',
-            borderRadius: '6px',
-            border: `1px solid ${theme.border}`,
+        <button
+          onClick={() => {
+            if (window.electronAPI.openDebugWindow) {
+              window.electronAPI.openDebugWindow();
+            }
           }}
+          style={styles.connectBtn}
         >
-          {logs.length === 0 ? (
-            <div style={{ color: theme.textSec, fontStyle: 'italic' }}>
-              No logs available
-            </div>
-          ) : (
-            <div
-              style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}
-            >
-              {logs.map((log, index) => (
-                <div key={index} style={{ display: 'flex', gap: '8px' }}>
-                  <span style={{ color: theme.textSec, minWidth: '160px' }}>
-                    {log.timestamp}
-                  </span>
-                  <span
-                    style={{
-                      color: getLogColor(log.level),
-                      minWidth: '60px',
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    [{log.level.toUpperCase()}]
-                  </span>
-                  <span style={{ wordBreak: 'break-word' }}>{log.message}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div
-          style={{ marginTop: '6px', fontSize: '12px', color: theme.textSec }}
-        >
-          Showing {logs.length} {logs.length === 1 ? 'log' : 'logs'}
-        </div>
+          Show Debug Logs
+        </button>
       </div>
     </div>
   );

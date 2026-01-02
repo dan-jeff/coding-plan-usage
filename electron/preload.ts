@@ -65,4 +65,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     };
   },
   resizeWindow: (height: number) => ipcRenderer.send('resize-window', height),
+  getProviderOrder: () => ipcRenderer.invoke('get-provider-order'),
+  setProviderOrder: (order: string[]) =>
+    ipcRenderer.send('set-provider-order', order),
+  openDebugWindow: () => ipcRenderer.send('open-debug-window'),
+  getIconSettings: () => ipcRenderer.invoke('get-icon-settings'),
+  setIconSettings: (settings: {
+    thresholdWarning: number;
+    thresholdCritical: number;
+  }) => ipcRenderer.send('set-icon-settings', settings),
 });

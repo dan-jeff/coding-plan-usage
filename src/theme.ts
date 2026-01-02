@@ -19,7 +19,7 @@ export const styles: Record<
   container: {
     backgroundColor: theme.bg,
     color: theme.textMain,
-    // minHeight: '100vh', // Removed to allow content-based resizing
+    height: '100vh',
     fontFamily: '"Inter", system-ui, -apple-system, sans-serif',
     display: 'flex',
     flexDirection: 'column',
