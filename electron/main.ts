@@ -10,7 +10,7 @@ import {
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { existsSync } from 'fs';
+import { existsSync, promises as fsPromises } from 'fs';
 import { exec, spawn } from 'child_process';
 import AutoLaunch from 'auto-launch';
 import electronUpdater from 'electron-updater';
@@ -40,16 +40,16 @@ const _dirname =
 
 function getExecutablePath(): string {
   if (process.platform === 'linux') {
-    return process.env.APPIMAGE || app.getPath('exe');
+    const path = process.env.APPIMAGE || app.getPath('exe');
+    debug('Resolved executable path', {
+      source: process.env.APPIMAGE ? 'APPIMAGE' : 'exe',
+      path,
+    });
+    return path;
   }
-  return app.getPath('exe');
-}
-
-function getAutoLauncher(): AutoLaunch {
-  return new AutoLaunch({
-    name: 'Coding Plan Usage',
-    path: getExecutablePath(),
-  });
+  const path = app.getPath('exe');
+  debug('Resolved executable path', { source: 'exe', path });
+  return path;
 }
 
 const DEFAULT_ICON_SETTINGS = {
@@ -567,30 +567,81 @@ ipcMain.on('start-session', async (event, provider) => {
   }
 });
 
+function getLinuxAutostartFile(): string {
+  return path.join(
+    app.getPath('home'),
+    '.config',
+    'autostart',
+    'coding-plan-usage.desktop'
+  );
+}
+
 // IPC handlers
 ipcMain.handle('get-auto-launch', async () => {
   if (process.platform === 'linux') {
-    return await getAutoLauncher().isEnabled();
+    return existsSync(getLinuxAutostartFile());
   }
   return app.getLoginItemSettings().openAtLogin;
 });
 
 ipcMain.on('set-auto-launch', async (event, enable) => {
-  if (process.env.NODE_ENV === 'development') {
+  if (!app.isPackaged) {
     warn('Auto-launch is disabled in development mode');
     return;
   }
 
+  const execPath = getExecutablePath();
+  info('Setting auto-launch', { enable, platform: process.platform, execPath });
+
   if (process.platform === 'linux') {
-    if (enable) {
-      await getAutoLauncher().enable();
-    } else {
-      await getAutoLauncher().disable();
+    const desktopFile = getLinuxAutostartFile();
+    try {
+      if (enable) {
+        const dir = path.dirname(desktopFile);
+        if (!existsSync(dir)) {
+          await fsPromises.mkdir(dir, { recursive: true });
+        }
+
+        // IMPORTANT: Exec path must be quoted to handle spaces
+        const desktopContent = `[Desktop Entry]
+Type=Application
+Version=1.0
+Name=coding-plan-usage
+Comment=Start coding-plan-usage on startup
+Exec="${execPath}"
+StartupNotify=false
+Terminal=false
+`;
+        await fsPromises.writeFile(desktopFile, desktopContent, 'utf-8');
+
+        info('Auto-launch enabled successfully (manual)', {
+          platform: 'linux',
+          file: desktopFile,
+        });
+      } else {
+        if (existsSync(desktopFile)) {
+          await fsPromises.unlink(desktopFile);
+        }
+        info('Auto-launch disabled successfully (manual)', {
+          platform: 'linux',
+        });
+      }
+    } catch (err) {
+      error('Failed to set auto-launch on Linux', {
+        enable,
+        execPath,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   } else {
     app.setLoginItemSettings({
       openAtLogin: enable,
-      path: getExecutablePath(),
+      path: execPath,
+    });
+    info('Auto-launch set successfully', {
+      platform: process.platform,
+      enable,
+      execPath,
     });
   }
 });

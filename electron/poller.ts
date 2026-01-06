@@ -7,6 +7,9 @@ import {
   BrowserWindow,
   nativeImage,
 } from 'electron';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import {
   getSession,
   hasSession,
@@ -15,15 +18,20 @@ import {
 } from './secure-store.js';
 import { debug, info, warn, error } from './logger.js';
 
+const _dirname =
+  typeof __dirname !== 'undefined'
+    ? __dirname
+    : dirname(fileURLToPath(import.meta.url));
+
 let pollingIntervalId: NodeJS.Timeout | null = null;
 let currentIntervalMinutes: number = 15;
 
 const ICON_GREEN =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAAiklEQVR4nO3UzQ2AMAgG0NZtXMQZHNEZXMRx8IShLT9fjWnSRI4WHniAlGaLHCUQEamFObu15qMFog3UjxJdj00Fr/108eUNWr9pf1fAKIrgzcQoGuU+MHfsQWtcTq1O/EX88ECYt0duFBpcIzdQnbgHt3ILWHZEcO9eNBOjeHSExp5NpEF06OeLGyKvRyBxHffNAAAAAElFTkSuQmCC';
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABiklEQVR4AZRSPUvDQBh+79qkB3ayqOhipSJtJh2sa9F+gOhSSKj+ASchOHURQgc79xcIaj/QUfweHAQREUGEiruKm+Km0jvvTtO0MYg58pB7n/d5nrtcDoPH0HUWGGvMTMZrmYV4Pb2o1bNTqdRp0EMKXQHatq7GG+nibT77iBm+BAQ1AFSlwC6el9aeEvXManQ9RaBjtANiG9l+1no9A4bKvD/A4X76GECJEOU8sZkbtJsyQKysKmyXC5J244/3BFXofvRnJzKA0pcVL/PV3CHc5I9+ZSEG44SoRdHA4sCAIVMU/sCWxc7x9XwuwhCUOUw3+CGaiIcL/iC5Z94Vjjs1Jfb+FsFBAj33hZOKF8LhQEUlSPZGYmoFoe+5raUhRjD9bCF/W3fUwosVpffBofzNhBc3jZ0PfzZHLbzyNzqUr5n8dDtAFn7slgXSIwMsSxaS+E+IZQHWNOkBGSBMnETiYiSq08MArM2LngtdC0khN1OBpqG3WACFRrdmh0SYy2iXTGgNA6ggvgAAAP//fSk0rQAAAAZJREFUAwCyk5VkuKUwyAAAAABJRU5ErkJggg==';
 const ICON_YELLOW =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAAhUlEQVR4nO3UMQ6AMAgF0OLkqTy8p3LDxRBoofwa06SJjBYeOEApqwVlCczMbiFRtzZ8jEC0gfvRoOfui8fVxbdXaPXm/Z2BYRTAm4lhNMkVWDqOoBWup/Yn/iB+eCIs26M2Co6nRm+gP/EIHuQa2Ow8gnfuRTMxjCdHaO7ZRBpkh369uAHNPj4gMFgRZQAAAABJRU5ErkJggg==';
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABa0lEQVR4AZyTv0oDQRDGv9noZY2xMagogohd0qjgn0pT+gIJ6DMoHFZphDONdR5Ci7SCnVxMUMTe3kKtYiVqDMmNu0NOknBIvGGHvdmZ77e7t7sKEVYocIJr4xtcc/b5xjngxsRWPu+PRZRiAMCPcIygVD3ULyD1AKILgM4RBPf+6d4r150T9qHRZ78Avk3PoqkbAJ0BmDM+3GbAVIZK3nE9NR8mBWBnRqdzCfBmmPijXwN3r8KVCABN5zhK/LH+ifb2VxRrFUqXbELZHwaQi//bkV25qrpTGaO1+7aQQSe4xAJ3nxbfXey0+vJcxlsqo8zeJ2n3uxLl6XSi4miS3PKKUyEi+Q5rwYFW5iAJcU2BFKZbz3H1Vqsoh3ZcgNWquGKjk62HAAnM4MjN8yAaAXieBDIwCsHzoLJZ0Zgz6CnMINmLwdd6ydxKAfdSw93ARFJoxIF1ylW75j0m2U8tWNiwshezrS0WEdj4BwAA//8PB22gAAAABklEQVQDAGD0gHvD3XeeAAAAAElFTkSuQmCC';
 const ICON_RED =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAAiklEQVR4nO3UzQ2AMAgG0NZV3MERHNoR3MFZ8IShLT9fjWnSRI4WHniAlGaLHCUQEamFObu15qMFog3UjxK9tl0F1/Nw8eUNWr9pf1fAKIrgzcQoGuU+MHfsQWtcTq1O/EX88ECYt0duFBpcIzdQnbgHt3ILWHZEcO9eNBOjeHSExp5NpEF06OeLGyKvRyBxHffNAAAAAElFTkSuQmCC';
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABhUlEQVR4AZySz0sCQRTH3xtrM/SU9BMiwpteElOhk5Q/oPsK9T8ESycvweKhPXvvWgQdo+gH1KGIsLMeyk0P2bUIjEjX18yUorZE7jBvmfed9/3M29llYDNUlVxmZCViLibXzGhi/T6cisXjl0M2pdADKAZUxYwkskY1VSNgBULYI8Jdxuh2p779XI4ktyrxuLsb1AGUl1ITiuf1igANXjDJo3+OcyFn1YdvquH0NF/LKQFFfjI16BABolL9+xGyWOu48tOJBLg9L5t25qmLE5i9Pv2FI4CF5ruSFRtMXBgBaiIZKIg2ROfMqKV9CGDw0PoDEDQklLpr/0jzF87kGgE03nrOM/rmY80mePx353m78HpdecWNcm/er+QRv9ft2g8XufkXshAcDkYWskZ97MmhH4SXBUsHn04Bwsvvwqkd5Ku3ATIZBKXrXQBdl8m/IboOLBCQHmh3AFxE8WM8hpbnAKij23TVc5As5OaWiGBJtWgYRx5iqzMCZmMWEonaTAZaIvkCAAD//001QCYAAAAGSURBVAMA/d+QHCH7AUwAAAAASUVORK5CYII=';
 
 const DEFAULT_ICON_SETTINGS = {
   thresholdWarning: 50,
@@ -783,13 +791,27 @@ function updateTray(tray: Tray, results: PollResult[]) {
 }
 
 function updateTrayIcon(tray: Tray, color: string) {
-  let base64String = ICON_GREEN;
-  if (color === 'yellow') base64String = ICON_YELLOW;
-  if (color === 'red') base64String = ICON_RED;
-
   try {
-    const img = nativeImage.createFromDataURL(base64String);
-    tray.setImage(img);
+    // Load icon from file for better rendering on Linux
+    const iconFileName = `tray-${color}.png`;
+    const iconPath = path.join(_dirname, 'assets', iconFileName);
+    debug(`Loading tray icon from: ${iconPath}`);
+    const img = nativeImage.createFromPath(iconPath);
+
+    if (img.isEmpty()) {
+      warn(
+        `Tray icon file not found or empty: ${iconPath}, falling back to base64`
+      );
+      // Fallback to base64
+      let base64String = ICON_GREEN;
+      if (color === 'yellow') base64String = ICON_YELLOW;
+      if (color === 'red') base64String = ICON_RED;
+      const fallbackImg = nativeImage.createFromDataURL(base64String);
+      tray.setImage(fallbackImg);
+    } else {
+      debug(`Successfully loaded tray icon: ${iconPath}`);
+      tray.setImage(img);
+    }
   } catch (e) {
     error(`Failed to update tray icon: ${e}`);
   }
