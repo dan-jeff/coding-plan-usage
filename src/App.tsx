@@ -422,6 +422,9 @@ function App() {
     const connectedProviders = Object.entries(providers).filter(
       ([, data]) => data.connected
     );
+    const activeProviders = Object.entries(providers)
+      .filter(([, data]) => data.connected)
+      .map(([key]) => key);
 
     // Sort based on providerOrder
     if (providerOrder.length > 0) {
@@ -482,11 +485,6 @@ function App() {
               Go to Settings
             </button>
           </div>
-          <UsageGraph
-            data={usageHistory}
-            onClick={() => window.electronAPI.openUsageDetails()}
-            historyPeriod={iconSettings.historyPeriod}
-          />
         </>
       );
     }
@@ -509,6 +507,7 @@ function App() {
           data={usageHistory}
           onClick={() => window.electronAPI.openUsageDetails()}
           historyPeriod={iconSettings.historyPeriod}
+          activeProviders={activeProviders}
         />
       </>
     );

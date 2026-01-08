@@ -5,6 +5,7 @@ import { UsageDetails } from './UsageDetails';
 
 export const UsageDetailsWindow = () => {
   const [usageHistory, setUsageHistory] = useState<UsageHistoryEntry[]>([]);
+  const [activeProviders, setActiveProviders] = useState<string[]>([]);
 
   useEffect(() => {
     const loadUsageHistory = async () => {
@@ -25,10 +26,34 @@ export const UsageDetailsWindow = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const fetchActiveProviders = async () => {
+      const status = await window.electronAPI.getProviderStatus();
+      const active = Object.entries(status)
+        .filter(([, connected]) => connected)
+        .map(([provider]) => provider);
+      setActiveProviders(active);
+    };
+    fetchActiveProviders();
+
+    const unsubscribeConnect = window.electronAPI.onProviderConnected(() =>
+      fetchActiveProviders()
+    );
+    const unsubscribeDisconnect = window.electronAPI.onProviderDisconnected(
+      () => fetchActiveProviders()
+    );
+
+    return () => {
+      unsubscribeConnect();
+      unsubscribeDisconnect();
+    };
+  }, []);
+
   return (
     <div style={styles.container}>
       <UsageDetails
         data={usageHistory}
+        activeProviders={activeProviders}
         onBack={() => {
           window.close();
         }}

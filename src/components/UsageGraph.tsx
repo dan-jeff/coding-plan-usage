@@ -15,6 +15,7 @@ interface UsageGraphProps {
   data: UsageHistoryEntry[];
   onClick: () => void;
   historyPeriod: 'week' | 'month' | 'all';
+  activeProviders: string[];
 }
 
 interface GraphData {
@@ -27,6 +28,7 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
   data,
   onClick,
   historyPeriod,
+  activeProviders,
 }) => {
   const processGraphData = (): GraphData[] => {
     const now = new Date();
@@ -241,22 +243,26 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
               width={30}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Area
-              type="monotone"
-              dataKey="z_ai"
-              stroke={theme.accentGreen}
-              strokeWidth={2}
-              fillOpacity={1}
-              fill="url(#zaiGradient)"
-            />
-            <Area
-              type="monotone"
-              dataKey="claude"
-              stroke={theme.accentYellow}
-              strokeWidth={2}
-              fillOpacity={1}
-              fill="url(#claudeGradient)"
-            />
+            {activeProviders.includes('z_ai') && (
+              <Area
+                type="monotone"
+                dataKey="z_ai"
+                stroke={theme.accentGreen}
+                strokeWidth={2}
+                fillOpacity={1}
+                fill="url(#zaiGradient)"
+              />
+            )}
+            {activeProviders.includes('claude') && (
+              <Area
+                type="monotone"
+                dataKey="claude"
+                stroke={theme.accentYellow}
+                strokeWidth={2}
+                fillOpacity={1}
+                fill="url(#claudeGradient)"
+              />
+            )}
           </AreaChart>
         </ResponsiveContainer>
       </div>
