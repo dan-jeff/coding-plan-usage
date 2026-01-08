@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   refreshUsage: () => ipcRenderer.send('refresh-usage'),
   quitApp: () => ipcRenderer.send('quit-app'),
   getProviderStatus: () => ipcRenderer.invoke('get-provider-status'),
+  getUsageHistory: () => ipcRenderer.invoke('get-usage-history'),
   onProviderConnected: (
     callback: (event: IpcRendererEvent, provider: string) => void
   ) => {
@@ -69,6 +70,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setProviderOrder: (order: string[]) =>
     ipcRenderer.send('set-provider-order', order),
   openDebugWindow: () => ipcRenderer.send('open-debug-window'),
+  openUsageDetails: () => ipcRenderer.send('open-usage-details'),
   getIconSettings: () => ipcRenderer.invoke('get-icon-settings'),
   setIconSettings: (settings: {
     thresholdWarning: number;

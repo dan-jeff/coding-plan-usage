@@ -6,11 +6,14 @@ import {
   LayoutDashboard,
   X,
 } from 'lucide-react';
-import { ProviderData, UpdateStatusData } from './types';
+import { ProviderData, UpdateStatusData, UsageHistoryEntry } from './types';
 import { styles, theme } from './theme';
 import { ProviderCard } from './components/ProviderCard';
 import { SettingsView } from './components/SettingsView';
 import { DebugLogView } from './components/DebugLogView';
+import { UsageGraph } from './components/UsageGraph';
+import { UsageDetails } from './components/UsageDetails';
+import { UsageDetailsWindow } from './components/UsageDetailsWindow';
 import type { IconSettings } from './types';
 
 function App() {
@@ -24,6 +27,7 @@ function App() {
   const [iconSettings, setIconSettings] = useState<IconSettings>({
     thresholdWarning: 50,
     thresholdCritical: 80,
+    historyPeriod: 'week',
   });
   const [providers, setProviders] = useState<{ [key: string]: ProviderData }>({
     z_ai: { label: 'Z.ai', connected: false, usage: null, command: '' },
@@ -35,15 +39,21 @@ function App() {
   const [updateMessage, setUpdateMessage] = useState('');
   const [updateProgress, setUpdateProgress] = useState(0);
   const [showSetupHint, setShowSetupHint] = useState(true);
+  const [usageHistory, setUsageHistory] = useState<UsageHistoryEntry[]>([]);
 
   const appRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const isDebugView = window.location.hash === '#debug-logs';
+  const isUsageDetailsView = window.location.hash === '#usage-details';
 
   if (isDebugView) {
     return <DebugLogView />;
+  }
+
+  if (isUsageDetailsView) {
+    return <UsageDetailsWindow />;
   }
 
   useLayoutEffect(() => {
@@ -181,13 +191,29 @@ function App() {
       try {
         if (window.electronAPI.getIconSettings) {
           const settings = await window.electronAPI.getIconSettings();
-          setIconSettings(settings);
+          setIconSettings({
+            thresholdWarning: settings.thresholdWarning ?? 50,
+            thresholdCritical: settings.thresholdCritical ?? 80,
+            historyPeriod: settings.historyPeriod || 'week',
+          });
         }
       } catch (err) {
         console.error('Failed to load icon settings', err);
       }
     };
     loadIconSettings();
+
+    const loadUsageHistory = async () => {
+      try {
+        if (window.electronAPI.getUsageHistory) {
+          const history = await window.electronAPI.getUsageHistory();
+          setUsageHistory(history);
+        }
+      } catch (err) {
+        console.error('Failed to load usage history', err);
+      }
+    };
+    loadUsageHistory();
 
     // Listeners
     const removeConnectListener = window.electronAPI.onProviderConnected(
@@ -228,6 +254,13 @@ function App() {
             },
           };
         });
+
+        if (window.electronAPI.getUsageHistory) {
+          window.electronAPI
+            .getUsageHistory()
+            .then(setUsageHistory)
+            .catch(console.error);
+        }
       }
     );
 
@@ -408,46 +441,53 @@ function App() {
       if (!showSetupHint) return null;
 
       return (
-        <div
-          style={
-            {
-              ...styles.setupCard,
-              position: 'relative',
-            } as React.CSSProperties
-          }
-        >
-          <button
-            onClick={() => setShowSetupHint(false)}
-            style={{
-              position: 'absolute',
-              top: '8px',
-              right: '8px',
-              background: 'none',
-              border: 'none',
-              color: theme.textSec,
-              cursor: 'pointer',
-              padding: '4px',
-            }}
+        <>
+          <div
+            style={
+              {
+                ...styles.setupCard,
+                position: 'relative',
+              } as React.CSSProperties
+            }
           >
-            <X size={16} />
-          </button>
-          <LayoutDashboard
-            size={40}
-            color={theme.textSec}
-            style={{ opacity: 0.5 }}
-          />
-          <div>
-            <h3 style={{ margin: '0 0 8px 0', fontSize: '16px' }}>
-              Setup Required
-            </h3>
-            <p style={{ margin: 0, fontSize: '13px', color: theme.textSec }}>
-              Connect a provider to start tracking usage.
-            </p>
+            <button
+              onClick={() => setShowSetupHint(false)}
+              style={{
+                position: 'absolute',
+                top: '8px',
+                right: '8px',
+                background: 'none',
+                border: 'none',
+                color: theme.textSec,
+                cursor: 'pointer',
+                padding: '4px',
+              }}
+            >
+              <X size={16} />
+            </button>
+            <LayoutDashboard
+              size={40}
+              color={theme.textSec}
+              style={{ opacity: 0.5 }}
+            />
+            <div>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '16px' }}>
+                Setup Required
+              </h3>
+              <p style={{ margin: 0, fontSize: '13px', color: theme.textSec }}>
+                Connect a provider to start tracking usage.
+              </p>
+            </div>
+            <button style={styles.setupBtn} onClick={() => setView('settings')}>
+              Go to Settings
+            </button>
           </div>
-          <button style={styles.setupBtn} onClick={() => setView('settings')}>
-            Go to Settings
-          </button>
-        </div>
+          <UsageGraph
+            data={usageHistory}
+            onClick={() => window.electronAPI.openUsageDetails()}
+            historyPeriod={iconSettings.historyPeriod}
+          />
+        </>
       );
     }
 
@@ -465,6 +505,11 @@ function App() {
             <ProviderCard data={data} />
           </div>
         ))}
+        <UsageGraph
+          data={usageHistory}
+          onClick={() => window.electronAPI.openUsageDetails()}
+          historyPeriod={iconSettings.historyPeriod}
+        />
       </>
     );
   };

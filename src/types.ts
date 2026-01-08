@@ -1,6 +1,13 @@
 export interface IconSettings {
   thresholdWarning: number;
   thresholdCritical: number;
+  historyPeriod: 'week' | 'month' | 'all';
+}
+
+export interface UsageHistoryEntry {
+  provider: 'z_ai' | 'claude';
+  timestamp: string;
+  percentage: number;
 }
 
 export interface LogEntry {
@@ -95,6 +102,8 @@ declare global {
       startSession: (provider: string) => void;
       setProviderCommand: (provider: string, command: string) => void;
       getProviderCommands: () => Promise<Record<string, string> | null>;
+      getUsageHistory: () => Promise<UsageHistoryEntry[]>;
+      openUsageDetails: () => void;
     };
   }
 }

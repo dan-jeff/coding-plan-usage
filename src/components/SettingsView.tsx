@@ -77,6 +77,33 @@ export const SettingsView = ({
             </span>
           </div>
         )}
+        <div style={styles.settingRow}>
+          <span style={styles.settingLabel}>Graph History Period</span>
+          <select
+            value={iconSettings.historyPeriod}
+            onChange={(e) =>
+              onIconSettingsChange({
+                ...iconSettings,
+                historyPeriod: e.target.value as 'week' | 'month' | 'all',
+              })
+            }
+            style={{
+              backgroundColor: theme.card,
+              color: theme.textMain,
+              border: `1px solid ${theme.border}`,
+              borderRadius: '6px',
+              padding: '4px 8px',
+              outline: 'none',
+              cursor: 'pointer',
+              fontSize: '13px',
+              minWidth: '80px',
+            }}
+          >
+            <option value="week">Week</option>
+            <option value="month">Month</option>
+            <option value="all">All Time</option>
+          </select>
+        </div>
         <div style={{ ...styles.settingRow, borderBottom: 'none' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
             <span style={styles.settingLabel}>Check for Updates</span>

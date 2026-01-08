@@ -1,7 +1,7 @@
 {
   "name": "coding-plan-usage",
   "type": "module",
-  "version": "0.0.16-dev.1+a0f064b-dirty",
+  "version": "0.0.17-dirty",
   "//version": "AUTO-GENERATED from git tags - DO NOT EDIT. See .versionrc.md",
   "description": "Usage Tray App",
   "author": {
@@ -64,13 +64,15 @@
   "keywords": [],
   "license": "ISC",
   "dependencies": {
+    "@types/recharts": "^1.8.29",
     "auto-launch": "^5.0.6",
     "electron-store": "^11.0.2",
     "electron-updater": "^6.6.2",
     "lucide-react": "^0.562.0",
     "playwright": "^1.57.0",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "recharts": "^3.6.0"
   },
   "devDependencies": {
     "@types/auto-launch": "^5.0.5",

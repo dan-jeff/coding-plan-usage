@@ -97,3 +97,51 @@ export function getSetting<T>(key: string, defaultValue: T): T {
 export function setSetting(key: string, value: unknown): void {
   store.set(key, value);
 }
+
+export interface UsageHistoryEntry {
+  provider: 'z_ai' | 'claude';
+  timestamp: string;
+  percentage: number;
+}
+
+export function addUsageHistory(
+  provider: 'z_ai' | 'claude',
+  percentage: number
+): void {
+  const history: UsageHistoryEntry[] = store.get(
+    'usageHistory',
+    []
+  ) as UsageHistoryEntry[];
+  const now = new Date().toISOString();
+
+  const newEntry: UsageHistoryEntry = {
+    provider,
+    timestamp: now,
+    percentage,
+  };
+
+  history.push(newEntry);
+
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const prunedHistory = history.filter((entry) => {
+    const entryDate = new Date(entry.timestamp);
+    return entryDate >= thirtyDaysAgo;
+  });
+
+  store.set('usageHistory', prunedHistory);
+  info('Added usage history entry', {
+    provider,
+    percentage,
+    historyLength: prunedHistory.length,
+  });
+}
+
+export function getUsageHistory(): UsageHistoryEntry[] {
+  const history: UsageHistoryEntry[] = store.get(
+    'usageHistory',
+    []
+  ) as UsageHistoryEntry[];
+  return history;
+}

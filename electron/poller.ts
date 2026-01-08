@@ -14,6 +14,7 @@ import {
   getSession,
   hasSession,
   getSetting,
+  addUsageHistory,
   type ProviderConfig,
 } from './secure-store.js';
 import { debug, info, warn, error } from './logger.js';
@@ -36,11 +37,13 @@ const ICON_RED =
 const DEFAULT_ICON_SETTINGS = {
   thresholdWarning: 50,
   thresholdCritical: 80,
+  historyPeriod: 'week' as const,
 };
 
 interface IconSettings {
   thresholdWarning: number;
   thresholdCritical: number;
+  historyPeriod: 'week' | 'month' | 'all';
 }
 
 export interface UsageDetail {
@@ -111,6 +114,14 @@ export function updatePollingInterval(tray: Tray, minutes: number) {
   info(`Polling interval updated to ${minutes} minutes`);
 }
 
+function getPrimaryMetric(details: UsageDetail[]): UsageDetail | undefined {
+  const shortTermLimit = details.find((d) => d.label === '5-Hour Window');
+  const fallbackLimit = details.find(
+    (d) => d.label !== '5-Hour Window' && d.displayReset !== 'Unavailable'
+  );
+  return shortTermLimit || fallbackLimit || details[0];
+}
+
 export async function refreshAll(tray: Tray) {
   info('Starting poll cycle...');
   const results: PollResult[] = [];
@@ -122,6 +133,12 @@ export async function refreshAll(tray: Tray) {
     try {
       const result = await fetchUsage(zConfig);
       results.push({ provider: 'z_ai', ...result });
+
+      const primaryMetric = getPrimaryMetric(result.details);
+      if (primaryMetric) {
+        addUsageHistory('z_ai', primaryMetric.percentage);
+      }
+
       notifyUsageUpdate('z_ai', result.usage, result.details);
     } catch (err) {
       const errorStr = String(err);
@@ -145,6 +162,12 @@ export async function refreshAll(tray: Tray) {
     try {
       const result = await fetchUsage(claudeConfig);
       results.push({ provider: 'claude', ...result });
+
+      const primaryMetric = getPrimaryMetric(result.details);
+      if (primaryMetric) {
+        addUsageHistory('claude', primaryMetric.percentage);
+      }
+
       notifyUsageUpdate('claude', result.usage, result.details);
     } catch (err) {
       const errorStr = String(err);

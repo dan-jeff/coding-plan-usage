@@ -22,6 +22,7 @@ import {
   deleteSession,
   getSetting,
   setSetting,
+  getUsageHistory,
 } from './secure-store.js';
 import {
   debug,
@@ -55,6 +56,7 @@ function getExecutablePath(): string {
 const DEFAULT_ICON_SETTINGS = {
   thresholdWarning: 50,
   thresholdCritical: 80,
+  historyPeriod: 'week' as const,
 };
 
 info('--- MAIN PROCESS STARTING ---');
@@ -62,6 +64,7 @@ info('--- MAIN PROCESS STARTING ---');
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let debugWindow: BrowserWindow | null = null;
+let usageDetailsWindow: BrowserWindow | null = null;
 
 function createWindow() {
   const preloadPath =
@@ -214,6 +217,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     // Do not quit, keep tray active
   }
+});
+
+app.on('before-quit', () => {
+  app.isQuitting = true;
 });
 
 function authenticateProvider(provider: 'z_ai' | 'claude') {
@@ -483,6 +490,10 @@ ipcMain.handle('get-provider-commands', () => {
     z_ai: '',
     claude: '',
   });
+});
+
+ipcMain.handle('get-usage-history', () => {
+  return getUsageHistory();
 });
 
 // Set CLI command for a specific provider
@@ -876,5 +887,43 @@ ipcMain.on('open-debug-window', () => {
 
   debugWindow.on('closed', () => {
     debugWindow = null;
+  });
+});
+
+ipcMain.on('open-usage-details', () => {
+  if (usageDetailsWindow && !usageDetailsWindow.isDestroyed()) {
+    usageDetailsWindow.focus();
+    return;
+  }
+
+  const preloadPath =
+    process.env.NODE_ENV === 'development'
+      ? path.join(_dirname, '../dist-electron/preload.cjs')
+      : path.join(_dirname, 'preload.cjs');
+
+  usageDetailsWindow = new BrowserWindow({
+    width: 900,
+    height: 700,
+    show: true,
+    center: true,
+    autoHideMenuBar: true,
+    icon: path.join(_dirname, 'assets/icon.png'),
+    webPreferences: {
+      preload: preloadPath,
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  if (process.env.NODE_ENV === 'development') {
+    usageDetailsWindow.loadURL('http://localhost:5173#usage-details');
+  } else {
+    usageDetailsWindow.loadURL(
+      `file://${path.join(_dirname, '../dist/index.html')}#usage-details`
+    );
+  }
+
+  usageDetailsWindow.on('closed', () => {
+    usageDetailsWindow = null;
   });
 });
