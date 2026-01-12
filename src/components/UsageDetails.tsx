@@ -490,430 +490,102 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
             </ResponsiveContainer>
           </div>
 
-          {activeProviders.includes('z_ai') && (
-            <>
-              <div style={styles.cardHeader}>
-                <span style={{ fontSize: '14px', fontWeight: 600 }}>
-                  Z.ai Usage ({getHistoryPeriodLabel()})
-                </span>
-                <select
-                  value={historyPeriod}
-                  onChange={(e) =>
-                    setHistoryPeriod(e.target.value as 'week' | 'month' | 'all')
-                  }
-                  style={{
-                    backgroundColor: theme.card,
-                    color: theme.textMain,
-                    border: `1px solid ${theme.border}`,
-                    borderRadius: '6px',
-                    padding: '4px 8px',
-                    outline: 'none',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    minWidth: '80px',
-                  }}
-                >
-                  <option value="week">Week</option>
-                  <option value="month">Month</option>
-                  <option value="all">All Time</option>
-                </select>
-              </div>
-              <div style={{ height: '200px', marginBottom: '24px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={graphData}>
-                    <defs>
-                      <linearGradient
-                        id="zaiOnlyGradient"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="5%"
-                          stopColor={providerColors.z_ai}
-                          stopOpacity={0.8}
-                        />
-                        <stop
-                          offset="95%"
-                          stopColor={providerColors.z_ai}
-                          stopOpacity={0.1}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke={theme.border}
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={formatDate}
-                      stroke={theme.textSec}
-                      fontSize={11}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      domain={[0, 100]}
-                      stroke={theme.textSec}
-                      fontSize={11}
-                      tickLine={false}
-                      tickFormatter={(value) => `${value}%`}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Area
-                      type="monotone"
-                      dataKey="z_ai"
-                      stroke={providerColors.z_ai}
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#zaiOnlyGradient)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </>
-          )}
+          {orderedProviders.map((provider, index) => {
+            const isLast = index === orderedProviders.length - 1;
+            const config = PROVIDER_CONFIG[provider];
 
-          {activeProviders.includes('claude') && (
-            <>
-              <div style={styles.cardHeader}>
-                <span style={{ fontSize: '14px', fontWeight: 600 }}>
-                  Claude Usage ({getHistoryPeriodLabel()})
-                </span>
-                <select
-                  value={historyPeriod}
-                  onChange={(e) =>
-                    setHistoryPeriod(e.target.value as 'week' | 'month' | 'all')
-                  }
+            return (
+              <div key={provider}>
+                <div style={styles.cardHeader}>
+                  <span style={{ fontSize: '14px', fontWeight: 600 }}>
+                    {config.usageTitle} ({getHistoryPeriodLabel()})
+                  </span>
+                  <select
+                    value={historyPeriod}
+                    onChange={(e) =>
+                      setHistoryPeriod(
+                        e.target.value as 'week' | 'month' | 'all'
+                      )
+                    }
+                    style={{
+                      backgroundColor: theme.card,
+                      color: theme.textMain,
+                      border: `1px solid ${theme.border}`,
+                      borderRadius: '6px',
+                      padding: '4px 8px',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                      minWidth: '80px',
+                    }}
+                  >
+                    <option value="week">Week</option>
+                    <option value="month">Month</option>
+                    <option value="all">All Time</option>
+                  </select>
+                </div>
+                <div
                   style={{
-                    backgroundColor: theme.card,
-                    color: theme.textMain,
-                    border: `1px solid ${theme.border}`,
-                    borderRadius: '6px',
-                    padding: '4px 8px',
-                    outline: 'none',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    minWidth: '80px',
+                    height: '200px',
+                    marginBottom: isLast ? '0' : '24px',
                   }}
                 >
-                  <option value="week">Week</option>
-                  <option value="month">Month</option>
-                  <option value="all">All Time</option>
-                </select>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={graphData}>
+                      <defs>
+                        <linearGradient
+                          id={onlyGradientId(provider)}
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="5%"
+                            stopColor={providerColors[provider]}
+                            stopOpacity={0.8}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor={providerColors[provider]}
+                            stopOpacity={0.1}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke={theme.border}
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="date"
+                        tickFormatter={formatDate}
+                        stroke={theme.textSec}
+                        fontSize={11}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        domain={[0, 100]}
+                        stroke={theme.textSec}
+                        fontSize={11}
+                        tickLine={false}
+                        tickFormatter={(value) => `${value}%`}
+                      />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Area
+                        type="monotone"
+                        dataKey={provider}
+                        stroke={providerColors[provider]}
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill={`url(#${onlyGradientId(provider)})`}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-              <div style={{ height: '200px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={graphData}>
-                    <defs>
-                      <linearGradient
-                        id="claudeOnlyGradient"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="5%"
-                          stopColor={providerColors.claude}
-                          stopOpacity={0.8}
-                        />
-                        <stop
-                          offset="95%"
-                          stopColor={providerColors.claude}
-                          stopOpacity={0.1}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke={theme.border}
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={formatDate}
-                      stroke={theme.textSec}
-                      fontSize={11}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      domain={[0, 100]}
-                      stroke={theme.textSec}
-                      fontSize={11}
-                      tickLine={false}
-                      tickFormatter={(value) => `${value}%`}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Area
-                      type="monotone"
-                      dataKey="claude"
-                      stroke={providerColors.claude}
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#claudeOnlyGradient)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </>
-          )}
-
-          {activeProviders.includes('codex') && (
-            <>
-              <div style={styles.cardHeader}>
-                <span style={{ fontSize: '14px', fontWeight: 600 }}>
-                  ChatGPT Codex Usage ({getHistoryPeriodLabel()})
-                </span>
-                <select
-                  value={historyPeriod}
-                  onChange={(e) =>
-                    setHistoryPeriod(e.target.value as 'week' | 'month' | 'all')
-                  }
-                  style={{
-                    backgroundColor: theme.card,
-                    color: theme.textMain,
-                    border: `1px solid ${theme.border}`,
-                    borderRadius: '6px',
-                    padding: '4px 8px',
-                    outline: 'none',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    minWidth: '80px',
-                  }}
-                >
-                  <option value="week">Week</option>
-                  <option value="month">Month</option>
-                  <option value="all">All Time</option>
-                </select>
-              </div>
-              <div style={{ height: '200px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={graphData}>
-                    <defs>
-                      <linearGradient
-                        id="codexOnlyGradient"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="5%"
-                          stopColor={providerColors.codex}
-                          stopOpacity={0.8}
-                        />
-                        <stop
-                          offset="95%"
-                          stopColor={providerColors.codex}
-                          stopOpacity={0.1}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke={theme.border}
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={formatDate}
-                      stroke={theme.textSec}
-                      fontSize={11}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      domain={[0, 100]}
-                      stroke={theme.textSec}
-                      fontSize={11}
-                      tickLine={false}
-                      tickFormatter={(value) => `${value}%`}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Area
-                      type="monotone"
-                      dataKey="codex"
-                      stroke={providerColors.codex}
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#codexOnlyGradient)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </>
-          )}
-
-          {activeProviders.includes('gemini') && (
-            <>
-              <div style={styles.cardHeader}>
-                <span style={{ fontSize: '14px', fontWeight: 600 }}>
-                  Gemini (AG) Usage ({getHistoryPeriodLabel()})
-                </span>
-                <select
-                  value={historyPeriod}
-                  onChange={(e) =>
-                    setHistoryPeriod(e.target.value as 'week' | 'month' | 'all')
-                  }
-                  style={{
-                    backgroundColor: theme.card,
-                    color: theme.textMain,
-                    border: `1px solid ${theme.border}`,
-                    borderRadius: '6px',
-                    padding: '4px 8px',
-                    outline: 'none',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    minWidth: '80px',
-                  }}
-                >
-                  <option value="week">Week</option>
-                  <option value="month">Month</option>
-                  <option value="all">All Time</option>
-                </select>
-              </div>
-              <div style={{ height: '200px', marginBottom: '24px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={graphData}>
-                    <defs>
-                      <linearGradient
-                        id="geminiOnlyGradient"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="5%"
-                          stopColor={providerColors.gemini}
-                          stopOpacity={0.8}
-                        />
-                        <stop
-                          offset="95%"
-                          stopColor={providerColors.gemini}
-                          stopOpacity={0.1}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke={theme.border}
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={formatDate}
-                      stroke={theme.textSec}
-                      fontSize={11}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      domain={[0, 100]}
-                      stroke={theme.textSec}
-                      fontSize={11}
-                      tickLine={false}
-                      tickFormatter={(value) => `${value}%`}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Area
-                      type="monotone"
-                      dataKey="gemini"
-                      stroke={providerColors.gemini}
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#geminiOnlyGradient)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </>
-          )}
-
-          {activeProviders.includes('external_models') && (
-            <>
-              <div style={styles.cardHeader}>
-                <span style={{ fontSize: '14px', fontWeight: 600 }}>
-                  Gemini External (AG) Usage ({getHistoryPeriodLabel()})
-                </span>
-                <select
-                  value={historyPeriod}
-                  onChange={(e) =>
-                    setHistoryPeriod(e.target.value as 'week' | 'month' | 'all')
-                  }
-                  style={{
-                    backgroundColor: theme.card,
-                    color: theme.textMain,
-                    border: `1px solid ${theme.border}`,
-                    borderRadius: '6px',
-                    padding: '4px 8px',
-                    outline: 'none',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    minWidth: '80px',
-                  }}
-                >
-                  <option value="week">Week</option>
-                  <option value="month">Month</option>
-                  <option value="all">All Time</option>
-                </select>
-              </div>
-              <div style={{ height: '200px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={graphData}>
-                    <defs>
-                      <linearGradient
-                        id="externalModelsOnlyGradient"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="5%"
-                          stopColor={providerColors.external_models}
-                          stopOpacity={0.8}
-                        />
-                        <stop
-                          offset="95%"
-                          stopColor={providerColors.external_models}
-                          stopOpacity={0.1}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke={theme.border}
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={formatDate}
-                      stroke={theme.textSec}
-                      fontSize={11}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      domain={[0, 100]}
-                      stroke={theme.textSec}
-                      fontSize={11}
-                      tickLine={false}
-                      tickFormatter={(value) => `${value}%`}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Area
-                      type="monotone"
-                      dataKey="external_models"
-                      stroke={providerColors.external_models}
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#externalModelsOnlyGradient)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </>
-          )}
+            );
+          })}
         </div>
       </div>
     </div>

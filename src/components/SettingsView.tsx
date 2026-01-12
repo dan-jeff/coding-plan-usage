@@ -17,7 +17,6 @@ interface SettingsViewProps {
   handleRefreshIntervalChange: (
     e: React.ChangeEvent<HTMLSelectElement>
   ) => void;
-  providers: { [key: string]: ProviderData };
   orderedProviders: [string, ProviderData][];
   onConnect: (key: string) => void;
   onReconnect: (key: string) => void;
@@ -43,7 +42,6 @@ export const SettingsView = ({
   appVersion,
   refreshInterval,
   handleRefreshIntervalChange,
-  providers,
   orderedProviders,
   onConnect,
   onReconnect,

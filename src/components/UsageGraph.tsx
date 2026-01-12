@@ -28,6 +28,24 @@ interface GraphData {
   external_models: number;
 }
 
+type ProviderKey = keyof ProviderAccentColors;
+
+const PROVIDER_LABELS: Record<ProviderKey, string> = {
+  z_ai: 'Z.ai',
+  claude: 'Claude',
+  codex: 'ChatGPT Codex',
+  gemini: 'Gemini (AG)',
+  external_models: 'Gemini External (AG)',
+};
+
+const PROVIDER_GRADIENT_IDS: Record<ProviderKey, string> = {
+  z_ai: 'zaiGradient',
+  claude: 'claudeGradient',
+  codex: 'codexGradient',
+  gemini: 'geminiGradient',
+  external_models: 'externalModelsGradient',
+};
+
 export const UsageGraph: React.FC<UsageGraphProps> = ({
   data,
   onClick,
@@ -109,6 +127,9 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
   };
 
   const graphData = processGraphData();
+  const orderedProviders = activeProviders.filter(
+    (provider): provider is ProviderKey => provider in PROVIDER_LABELS
+  );
 
   const getHistoryPeriodLabel = (): string => {
     switch (historyPeriod) {
@@ -163,16 +184,8 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
                 }}
               />
               <span>
-                {entry.name === 'z_ai'
-                  ? 'Z.ai'
-                  : entry.name === 'claude'
-                    ? 'Claude'
-                    : entry.name === 'codex'
-                      ? 'ChatGPT Codex'
-                      : entry.name === 'gemini'
-                        ? 'Gemini (AG)'
-                        : 'Gemini External (AG)'}
-                : {entry.value}%
+                {PROVIDER_LABELS[entry.name as ProviderKey] || entry.name}:
+                {` ${entry.value}%`}
               </span>
             </div>
           ))}
@@ -324,56 +337,26 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
               width={30}
             />
             <Tooltip content={<CustomTooltip />} />
-            {activeProviders.includes('z_ai') && (
+            {orderedProviders.map((provider) => (
               <Area
+                key={provider}
                 type="monotone"
-                dataKey="z_ai"
-                stroke={providerColors?.z_ai || theme.accentGreen}
+                dataKey={provider}
+                stroke={
+                  providerColors?.[provider] ||
+                  (provider === 'claude'
+                    ? theme.accentYellow
+                    : provider === 'gemini'
+                      ? '#4285f4'
+                      : provider === 'external_models'
+                        ? '#8b5cf6'
+                        : theme.accentGreen)
+                }
                 strokeWidth={2}
                 fillOpacity={1}
-                fill="url(#zaiGradient)"
+                fill={`url(#${PROVIDER_GRADIENT_IDS[provider]})`}
               />
-            )}
-            {activeProviders.includes('claude') && (
-              <Area
-                type="monotone"
-                dataKey="claude"
-                stroke={providerColors?.claude || theme.accentYellow}
-                strokeWidth={2}
-                fillOpacity={1}
-                fill="url(#claudeGradient)"
-              />
-            )}
-            {activeProviders.includes('codex') && (
-              <Area
-                type="monotone"
-                dataKey="codex"
-                stroke={providerColors?.codex || theme.accentGreen}
-                strokeWidth={2}
-                fillOpacity={1}
-                fill="url(#codexGradient)"
-              />
-            )}
-            {activeProviders.includes('gemini') && (
-              <Area
-                type="monotone"
-                dataKey="gemini"
-                stroke={providerColors?.gemini || '#4285f4'}
-                strokeWidth={2}
-                fillOpacity={1}
-                fill="url(#geminiGradient)"
-              />
-            )}
-            {activeProviders.includes('external_models') && (
-              <Area
-                type="monotone"
-                dataKey="external_models"
-                stroke={providerColors?.external_models || '#8b5cf6'}
-                strokeWidth={2}
-                fillOpacity={1}
-                fill="url(#externalModelsGradient)"
-              />
-            )}
+            ))}
           </AreaChart>
         </ResponsiveContainer>
       </div>

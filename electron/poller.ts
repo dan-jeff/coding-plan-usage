@@ -1073,15 +1073,43 @@ function updateTray(tray: Tray, results: PollResult[]) {
   const geminiResult = results.find((r) => r.provider === 'gemini');
   const externalResult = results.find((r) => r.provider === 'external_models');
 
+  const providerOrder = getSetting('providerOrder', [
+    'codex',
+    'claude',
+    'gemini',
+    'external_models',
+    'z_ai',
+  ]);
+  const providerMeta: Record<
+    string,
+    { label: string; shortLabel: string; result?: PollResult }
+  > = {
+    z_ai: { label: 'Z.ai', shortLabel: 'Z', result: zResult },
+    claude: { label: 'Claude', shortLabel: 'C', result: claudeResult },
+    codex: { label: 'Codex', shortLabel: 'X', result: codexResult },
+    gemini: { label: 'Gemini (AG)', shortLabel: 'G', result: geminiResult },
+    external_models: {
+      label: 'Gemini External (AG)',
+      shortLabel: 'E',
+      result: externalResult,
+    },
+  };
+
   // Build Tooltip text
-  const tooltipParts = [];
-  if (zResult) tooltipParts.push(`Z.ai: ${zResult.usage}`);
-  if (claudeResult) tooltipParts.push(`Claude: ${claudeResult.usage}`);
-  if (codexResult) tooltipParts.push(`Codex: ${codexResult.usage}`);
-  if (geminiResult && geminiResult.usage)
-    tooltipParts.push(`Gemini: ${geminiResult.usage}`);
-  if (externalResult && externalResult.usage)
-    tooltipParts.push(`External Models: ${externalResult.usage}`);
+  const tooltipParts: string[] = [];
+  providerOrder.forEach((provider) => {
+    const meta = providerMeta[provider];
+    if (!meta?.result) return;
+
+    if (
+      (provider === 'gemini' || provider === 'external_models') &&
+      !meta.result.usage
+    ) {
+      return;
+    }
+
+    tooltipParts.push(`${meta.label}: ${meta.result.usage}`);
+  });
   tray.setToolTip(tooltipParts.join('\n') || 'Usage Tray');
 
   // Update Tray Title
@@ -1092,13 +1120,18 @@ function updateTray(tray: Tray, results: PollResult[]) {
   };
 
   const titleParts: string[] = [];
-  if (zResult) titleParts.push(`Z:${formatPercent(zResult.usage)}`);
-  if (claudeResult) titleParts.push(`C:${formatPercent(claudeResult.usage)}`);
-  if (codexResult) titleParts.push(`X:${formatPercent(codexResult.usage)}`);
-  if (geminiResult && geminiResult.usage)
-    titleParts.push(`G:${formatPercent(geminiResult.usage)}`);
-  if (externalResult && externalResult.usage)
-    titleParts.push(`E:${formatPercent(externalResult.usage)}`);
+  providerOrder.forEach((provider) => {
+    const meta = providerMeta[provider];
+    if (!meta?.result) return;
+    if (
+      (provider === 'gemini' || provider === 'external_models') &&
+      !meta.result.usage
+    ) {
+      return;
+    }
+
+    titleParts.push(`${meta.shortLabel}:${formatPercent(meta.result.usage)}`);
+  });
 
   const shortString = titleParts.join(' ');
   tray.setTitle(shortString);
@@ -1141,45 +1174,28 @@ function updateTray(tray: Tray, results: PollResult[]) {
   // Build Context Menu
   const menuTemplate: Electron.MenuItemConstructorOptions[] = [];
 
-  // Z.ai Menu Item
-  if (hasSession('z_ai')) {
-    menuTemplate.push({
-      label: `Z.ai: ${zResult?.usage || '...'}`,
-      enabled: false,
-    });
-  }
+  providerOrder.forEach((provider) => {
+    const meta = providerMeta[provider];
+    if (!meta) return;
 
-  // Claude Menu Item
-  if (hasSession('claude')) {
-    menuTemplate.push({
-      label: `Claude: ${claudeResult?.usage || '...'}`,
-      enabled: false,
-    });
-  }
+    if (provider === 'gemini' || provider === 'external_models') {
+      if (!meta.result) return;
+      menuTemplate.push({
+        label: `${meta.label}: ${meta.result.usage || 'Not connected'}`,
+        enabled: false,
+      });
+      return;
+    }
 
-  // Codex Menu Item
-  if (hasSession('codex')) {
-    menuTemplate.push({
-      label: `Codex: ${codexResult?.usage || '...'}`,
-      enabled: false,
-    });
-  }
-
-  // Gemini Menu Item
-  if (geminiResult) {
-    menuTemplate.push({
-      label: `Gemini: ${geminiResult.usage || 'Not connected'}`,
-      enabled: false,
-    });
-  }
-
-  // External Models Menu Item
-  if (externalResult) {
-    menuTemplate.push({
-      label: `External Models: ${externalResult.usage || 'Not connected'}`,
-      enabled: false,
-    });
-  }
+    if (provider === 'z_ai' || provider === 'claude' || provider === 'codex') {
+      if (hasSession(provider)) {
+        menuTemplate.push({
+          label: `${meta.label}: ${meta.result?.usage || '...'}`,
+          enabled: false,
+        });
+      }
+    }
+  });
 
   // Separator (only if we have items above)
   if (menuTemplate.length > 0) {
@@ -1268,8 +1284,8 @@ function checkHighUsage(result: PollResult | undefined) {
             : result.provider === 'codex'
               ? 'Codex'
               : result.provider === 'gemini'
-                ? 'Gemini'
-                : 'External Models';
+                ? 'Gemini (AG)'
+                : 'Gemini External (AG)';
       new Notification({
         title: 'Usage Warning',
         body: `${providerName} is at ${result.usage} usage.`,

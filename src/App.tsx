@@ -689,7 +689,6 @@ function App() {
               appVersion={appVersion}
               refreshInterval={refreshInterval}
               handleRefreshIntervalChange={handleRefreshIntervalChange}
-              providers={providers}
               orderedProviders={getSortedProviders(Object.entries(providers))}
               onConnect={connectProvider}
               onReconnect={handleReconnect}
