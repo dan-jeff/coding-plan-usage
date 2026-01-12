@@ -22,6 +22,7 @@ interface ProcessInfo {
   pid: number;
   port: number;
   csrfToken: string;
+  protocol: 'http' | 'https';
 }
 
 interface AntigravityModel {
@@ -228,17 +229,26 @@ export class AntigravityClient {
       }
 
       console.log('[Antigravity] Listening ports:', ports);
-      const workingPort = await this.findWorkingPort(
+      const workingPortInfo = await this.findWorkingPort(
         ports,
         basicInfo.csrfToken
       );
-      if (!workingPort) {
+      if (!workingPortInfo) {
         console.log('[Antigravity] No working port found');
         return false;
       }
 
-      console.log('[Antigravity] Connected on port:', workingPort);
-      this.processInfo = { ...basicInfo, port: workingPort };
+      console.log(
+        '[Antigravity] Connected on port:',
+        workingPortInfo.port,
+        'Protocol:',
+        workingPortInfo.protocol
+      );
+      this.processInfo = {
+        ...basicInfo,
+        port: workingPortInfo.port,
+        protocol: workingPortInfo.protocol,
+      };
       return true;
     } catch (error) {
       console.log('[Antigravity] Connect error:', error);
@@ -404,6 +414,7 @@ export class AntigravityClient {
         pid,
         port: parseInt(portMatch[1], 10),
         csrfToken: tokenMatch ? tokenMatch[1] : '',
+        protocol: 'https',
       };
     }
 
@@ -566,17 +577,20 @@ export class AntigravityClient {
   private async findWorkingPort(
     ports: number[],
     csrfToken: string
-  ): Promise<number | null> {
+  ): Promise<{ port: number; protocol: 'http' | 'https' } | null> {
     for (const port of ports) {
-      const isWorking = await this.testPort(port, csrfToken);
-      if (isWorking) {
-        return port;
+      const protocol = await this.testPort(port, csrfToken);
+      if (protocol) {
+        return { port, protocol };
       }
     }
     return null;
   }
 
-  private testPort(port: number, csrfToken: string): Promise<boolean> {
+  private testPort(
+    port: number,
+    csrfToken: string
+  ): Promise<'http' | 'https' | null> {
     return new Promise((resolve) => {
       const tokenDisplay = csrfToken
         ? csrfToken.substring(0, 8) + '...'
@@ -628,7 +642,7 @@ export class AntigravityClient {
                 '[Antigravity] Port test HTTPS SUCCESS for port:',
                 port
               );
-              resolve(true);
+              resolve('https');
             } catch (error) {
               console.log(
                 '[Antigravity] Port test HTTPS JSON parse failed:',
@@ -664,7 +678,7 @@ export class AntigravityClient {
   private testPortHttp(
     port: number,
     csrfToken: string,
-    resolve: (value: boolean) => void,
+    resolve: (value: 'http' | 'https' | null) => void,
     data: string
   ): void {
     console.log('[Antigravity] Trying HTTP fallback for port:', port);
@@ -704,32 +718,32 @@ export class AntigravityClient {
           try {
             JSON.parse(body);
             console.log('[Antigravity] Port test HTTP SUCCESS for port:', port);
-            resolve(true);
+            resolve('http');
           } catch (error) {
             console.log(
               '[Antigravity] Port test HTTP JSON parse failed:',
               error
             );
-            resolve(false);
+            resolve(null);
           }
         } else {
           console.log(
             '[Antigravity] Port test HTTP non-200 status:',
             res.statusCode
           );
-          resolve(false);
+          resolve(null);
         }
       });
     });
 
     req.on('error', (error) => {
       console.log('[Antigravity] Port test HTTP error:', error.message);
-      resolve(false);
+      resolve(null);
     });
     req.on('timeout', () => {
       console.log('[Antigravity] Port test HTTP timeout for port:', port);
       req.destroy();
-      resolve(false);
+      resolve(null);
     });
 
     req.write(data);
@@ -751,22 +765,29 @@ export class AntigravityClient {
         },
       });
 
-      const options: https.RequestOptions = {
+      const protocolModule =
+        this.processInfo.protocol === 'http' ? http : https;
+      const headers = {
+        'Content-Type': 'application/json',
+        'Content-Length': String(Buffer.byteLength(data)),
+        'Connect-Protocol-Version': '1',
+        'X-Codeium-Csrf-Token': this.processInfo.csrfToken,
+      };
+
+      const options: https.RequestOptions | http.RequestOptions = {
         hostname: '127.0.0.1',
         port: this.processInfo.port,
         path: '/exa.language_server_pb.LanguageServerService/GetUserStatus',
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(data),
-          'Connect-Protocol-Version': '1',
-          'X-Codeium-Csrf-Token': this.processInfo.csrfToken,
-        },
-        rejectUnauthorized: false,
+        headers,
         timeout: 5000,
       };
 
-      const req = https.request(options, (res) => {
+      if (this.processInfo.protocol === 'https') {
+        (options as https.RequestOptions).rejectUnauthorized = false;
+      }
+
+      const req = protocolModule.request(options, (res) => {
         let body = '';
         res.on('data', (chunk) => (body += chunk));
         res.on('end', () => {
