@@ -38,12 +38,14 @@ const DEFAULT_ICON_SETTINGS = {
   thresholdWarning: 50,
   thresholdCritical: 80,
   historyPeriod: 'week' as const,
+  showCodeReview: true,
 };
 
 interface IconSettings {
   thresholdWarning: number;
   thresholdCritical: number;
   historyPeriod: 'week' | 'month' | 'all';
+  showCodeReview: boolean;
 }
 
 export interface UsageDetail {
@@ -58,7 +60,7 @@ export interface UsageDetail {
 }
 
 export interface PollResult {
-  provider: 'z_ai' | 'claude';
+  provider: 'z_ai' | 'claude' | 'codex';
   usage: string | null; // Keep for backward compatibility (Max %)
   details: UsageDetail[]; // New field
   error?: string;
@@ -78,6 +80,7 @@ interface UsageMatch {
 const notifiedState: Record<string, boolean> = {
   z_ai: false,
   claude: false,
+  codex: false,
 };
 
 // Add property to app to track quitting state
@@ -184,6 +187,34 @@ export async function refreshAll(tray: Tray) {
     debug('Claude is not configured');
   }
 
+  const codexConfig = getSession('codex');
+  if (codexConfig) {
+    debug('Codex is configured, fetching usage');
+    try {
+      const result = await fetchUsage(codexConfig, 'codex');
+      results.push({ provider: 'codex', ...result });
+
+      const primaryMetric = getPrimaryMetric(result.details);
+      if (primaryMetric) {
+        addUsageHistory('codex', primaryMetric.percentage);
+      }
+
+      notifyUsageUpdate('codex', result.usage, result.details);
+    } catch (err) {
+      const errorStr = String(err);
+      error(`Error fetching Codex usage: ${errorStr}`);
+      results.push({
+        provider: 'codex',
+        usage: 'Error',
+        details: [],
+        error: errorStr,
+      });
+      notifyUsageUpdate('codex', 'Error', []);
+    }
+  } else {
+    debug('Codex is not configured');
+  }
+
   updateTray(tray, results);
 }
 
@@ -199,12 +230,21 @@ function notifyUsageUpdate(
 }
 
 function fetchUsage(
-  config: ProviderConfig
+  config: ProviderConfig,
+  provider: string = ''
 ): Promise<{ usage: string | null; details: UsageDetail[] }> {
   return new Promise((resolve, reject) => {
-    debug(`Fetching usage from URL: ${config.url}`);
+    let requestUrl = config.url;
+    if (
+      provider === 'codex' &&
+      (requestUrl.includes('/codex/settings/usage') ||
+        requestUrl.includes('/codex/settings/usage.data'))
+    ) {
+      requestUrl = 'https://chatgpt.com/backend-api/wham/usage';
+    }
+    debug(`Fetching usage from URL: ${requestUrl} (provider: ${provider})`);
     const request = net.request({
-      url: config.url,
+      url: requestUrl,
       useSessionCookies: true, // In case cookies are needed
     });
 
@@ -244,7 +284,15 @@ function fetchUsage(
 
         if (response.statusCode >= 200 && response.statusCode < 300) {
           try {
-            const parsed = parseUsage(responseBody);
+            let parsed;
+            if (provider === 'codex') {
+              const trimmedBody = responseBody.trim();
+              parsed = trimmedBody.startsWith('{')
+                ? parseCodexUsage(trimmedBody)
+                : parseCodexHtml(responseBody);
+            } else {
+              parsed = parseUsage(responseBody);
+            }
             resolve(parsed);
           } catch (err) {
             const errorStr = String(err);
@@ -476,18 +524,227 @@ function parseUsage(body: string): {
   return { usage: null, details: [] };
 }
 
-function formatTime(totalMinutes: number): string {
-  if (totalMinutes <= 0) return 'Resetting soon';
+function parseCodexUsage(body: string): {
+  usage: string | null;
+  details: UsageDetail[];
+} {
+  debug('Parsing Codex usage JSON response...');
 
-  // New logic here
-  if (totalMinutes >= 1440) {
-    const d = Math.floor(totalMinutes / 1440);
-    const h = Math.floor((totalMinutes % 1440) / 60);
+  let json: {
+    rate_limit?: {
+      primary_window?: {
+        used_percent?: number;
+        limit_window_seconds?: number;
+        reset_after_seconds?: number;
+        reset_at?: number;
+      };
+      secondary_window?: {
+        used_percent?: number;
+        limit_window_seconds?: number;
+        reset_after_seconds?: number;
+        reset_at?: number;
+      } | null;
+    };
+    code_review_rate_limit?: {
+      primary_window?: {
+        used_percent?: number;
+        limit_window_seconds?: number;
+        reset_after_seconds?: number;
+        reset_at?: number;
+      };
+    };
+  };
+
+  try {
+    json = JSON.parse(body) as typeof json;
+  } catch (err) {
+    warn(`Codex usage JSON parse failed: ${err}`);
+    return { usage: null, details: [] };
+  }
+
+  const details: UsageDetail[] = [];
+
+  const pushWindow = (
+    label: string,
+    window?: {
+      used_percent?: number;
+      limit_window_seconds?: number;
+      reset_after_seconds?: number;
+      reset_at?: number;
+    } | null
+  ) => {
+    if (!window) return;
+
+    const usedPercent = window.used_percent;
+    const limitSeconds = window.limit_window_seconds;
+    const resetAfterSeconds = window.reset_after_seconds;
+
+    if (
+      typeof usedPercent !== 'number' ||
+      typeof limitSeconds !== 'number' ||
+      typeof resetAfterSeconds !== 'number'
+    ) {
+      return;
+    }
+
+    const timeRemainingMinutes = Math.round(resetAfterSeconds / 60);
+    const totalDurationMinutes = Math.round(limitSeconds / 60);
+    const resetTime =
+      typeof window.reset_at === 'number'
+        ? new Date(window.reset_at * 1000).toISOString()
+        : undefined;
+
+    details.push({
+      label,
+      percentage: usedPercent,
+      limit: '',
+      used: '',
+      displayReset: formatTime(timeRemainingMinutes),
+      timeRemainingMinutes,
+      totalDurationMinutes,
+      resetTime,
+    });
+  };
+
+  pushWindow('5-Hour Window', json.rate_limit?.primary_window);
+  pushWindow('Weekly Limit', json.rate_limit?.secondary_window);
+  pushWindow('Code Review', json.code_review_rate_limit?.primary_window);
+
+  if (details.length === 0) {
+    warn('No valid metrics found in Codex usage JSON');
+    return { usage: null, details: [] };
+  }
+
+  details.sort((a, b) => {
+    const getPriority = (d: UsageDetail): number => {
+      if (d.label === '5-Hour Window') return 0;
+      if (d.label === 'Weekly Limit') return 1;
+      if (d.label === 'Code Review') return 2;
+      return 3;
+    };
+    const priorityA = getPriority(a);
+    const priorityB = getPriority(b);
+    if (priorityA !== priorityB) return priorityA - priorityB;
+    return b.percentage - a.percentage;
+  });
+
+  const primaryMetric = getPrimaryMetric(details);
+
+  if (primaryMetric) {
+    const percentage = primaryMetric.percentage;
+    debug(
+      `Codex parsed usage JSON: ${percentage}%, Details: ${details.map((d) => `${d.label}: ${d.percentage}%`).join(', ')}`
+    );
+    return {
+      usage: `${percentage}%`,
+      details,
+    };
+  }
+
+  return { usage: null, details };
+}
+
+function parseCodexHtml(body: string): {
+  usage: string | null;
+  details: UsageDetail[];
+} {
+  debug('Parsing Codex HTML response...');
+
+  const details: UsageDetail[] = [];
+
+  const articleRegex = /<article[^>]*>[\s\S]*?<\/article>/g;
+  const articles = body.match(articleRegex);
+
+  if (!articles) {
+    warn('No article elements found in Codex HTML');
+    return { usage: null, details: [] };
+  }
+
+  for (const article of articles) {
+    const paragraphMatch = article.match(/<p[^>]*>(.*?)<\/p>/);
+    const percentageMatch = article.match(
+      /<span[^>]*>(\d+)%<\/span>\s*<span[^>]*>\s*remaining\s*<\/span>/i
+    );
+
+    if (!percentageMatch) {
+      continue;
+    }
+
+    const remainingPercentage = parseInt(percentageMatch[1], 10);
+    const usedPercentage = 100 - remainingPercentage;
+
+    let label: string | undefined;
+    if (paragraphMatch) {
+      const text = paragraphMatch[1].trim();
+      if (text === '5 hour usage limit') {
+        label = '5-Hour Window';
+      } else if (text === 'Weekly usage limit') {
+        label = 'Weekly Limit';
+      } else if (text === 'Code review') {
+        label = 'Code Review';
+      }
+    }
+
+    if (label) {
+      details.push({
+        label,
+        percentage: usedPercentage,
+        limit: '',
+        used: '',
+        displayReset: 'Unavailable',
+      });
+      debug(
+        `Codex metric: ${label} - ${usedPercentage}% used (${remainingPercentage}% remaining)`
+      );
+    }
+  }
+
+  if (details.length === 0) {
+    warn('No valid metrics found in Codex HTML');
+    return { usage: null, details: [] };
+  }
+
+  details.sort((a, b) => {
+    const getPriority = (d: UsageDetail): number => {
+      if (d.label === '5-Hour Window') return 0;
+      if (d.label === 'Weekly Limit') return 1;
+      if (d.label === 'Code Review') return 2;
+      return 3;
+    };
+    const priorityA = getPriority(a);
+    const priorityB = getPriority(b);
+    if (priorityA !== priorityB) return priorityA - priorityB;
+    return b.percentage - a.percentage;
+  });
+
+  const primaryMetric = getPrimaryMetric(details);
+
+  if (primaryMetric) {
+    const percentage = primaryMetric.percentage;
+    debug(
+      `Codex parsed usage: ${percentage}%, Details: ${details.map((d) => `${d.label}: ${d.percentage}%`).join(', ')}`
+    );
+    return {
+      usage: `${percentage}%`,
+      details,
+    };
+  }
+
+  return { usage: null, details };
+}
+
+function formatTime(totalMinutes: number): string {
+  const roundedMinutes = Math.round(totalMinutes);
+  if (roundedMinutes <= 0) return 'Resetting soon';
+
+  if (roundedMinutes >= 1440) {
+    const d = Math.floor(roundedMinutes / 1440);
+    const h = Math.floor((roundedMinutes % 1440) / 60);
     return `${d}d ${h}h`;
   }
 
-  const h = Math.floor(totalMinutes / 60);
-  const m = totalMinutes % 60;
+  const h = Math.floor(roundedMinutes / 60);
+  const m = roundedMinutes % 60;
   if (h === 0) return `${m}m`;
   if (m === 0) return `${h}h`;
   return `${h}h ${m}m`;
@@ -715,11 +972,13 @@ function findAllUsages(
 function updateTray(tray: Tray, results: PollResult[]) {
   const zResult = results.find((r) => r.provider === 'z_ai');
   const claudeResult = results.find((r) => r.provider === 'claude');
+  const codexResult = results.find((r) => r.provider === 'codex');
 
   // Build Tooltip text
   const tooltipParts = [];
   if (zResult) tooltipParts.push(`Z.ai: ${zResult.usage}`);
   if (claudeResult) tooltipParts.push(`Claude: ${claudeResult.usage}`);
+  if (codexResult) tooltipParts.push(`Codex: ${codexResult.usage}`);
   tray.setToolTip(tooltipParts.join('\n') || 'Usage Tray');
 
   // Update Tray Title
@@ -732,6 +991,7 @@ function updateTray(tray: Tray, results: PollResult[]) {
   const titleParts: string[] = [];
   if (zResult) titleParts.push(`Z:${formatPercent(zResult.usage)}`);
   if (claudeResult) titleParts.push(`C:${formatPercent(claudeResult.usage)}`);
+  if (codexResult) titleParts.push(`X:${formatPercent(codexResult.usage)}`);
 
   const shortString = titleParts.join(' ');
   tray.setTitle(shortString);
@@ -739,7 +999,8 @@ function updateTray(tray: Tray, results: PollResult[]) {
   // Update Tray Icon for Linux (and others)
   const zPercent = getPercent(zResult?.usage || null);
   const cPercent = getPercent(claudeResult?.usage || null);
-  const maxUsage = Math.max(zPercent, cPercent);
+  const codexPercent = getPercent(codexResult?.usage || null);
+  const maxUsage = Math.max(zPercent, cPercent, codexPercent);
 
   const iconSettings = getSetting<IconSettings>(
     'iconSettings',
@@ -758,6 +1019,7 @@ function updateTray(tray: Tray, results: PollResult[]) {
   // Check for high usage
   checkHighUsage(zResult);
   checkHighUsage(claudeResult);
+  checkHighUsage(codexResult);
 
   // Build Context Menu
   const menuTemplate: Electron.MenuItemConstructorOptions[] = [];
@@ -774,6 +1036,14 @@ function updateTray(tray: Tray, results: PollResult[]) {
   if (hasSession('claude')) {
     menuTemplate.push({
       label: `Claude: ${claudeResult?.usage || '...'}`,
+      enabled: false,
+    });
+  }
+
+  // Codex Menu Item
+  if (hasSession('codex')) {
+    menuTemplate.push({
+      label: `Codex: ${codexResult?.usage || '...'}`,
       enabled: false,
     });
   }
@@ -857,9 +1127,15 @@ function checkHighUsage(result: PollResult | undefined) {
 
     // Check if we already notified for this provider
     if (!notifiedState[providerKey]) {
+      const providerName =
+        result.provider === 'z_ai'
+          ? 'Z.ai'
+          : result.provider === 'claude'
+            ? 'Claude'
+            : 'Codex';
       new Notification({
         title: 'Usage Warning',
-        body: `${result.provider === 'z_ai' ? 'Z.ai' : 'Claude'} is at ${result.usage} usage.`,
+        body: `${providerName} is at ${result.usage} usage.`,
       }).show();
 
       info(`High Usage Alert: ${result.provider} is at ${result.usage}`);

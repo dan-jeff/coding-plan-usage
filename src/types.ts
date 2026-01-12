@@ -1,11 +1,25 @@
+export interface ProviderAccentColors {
+  z_ai: string;
+  claude: string;
+  codex: string;
+}
+
+export const DEFAULT_PROVIDER_COLORS: ProviderAccentColors = {
+  z_ai: '#10b981',
+  claude: '#f59e0b',
+  codex: '#10b981',
+};
+
 export interface IconSettings {
   thresholdWarning: number;
   thresholdCritical: number;
   historyPeriod: 'week' | 'month' | 'all';
+  showCodeReview: boolean;
+  providerColors?: ProviderAccentColors;
 }
 
 export interface UsageHistoryEntry {
-  provider: 'z_ai' | 'claude';
+  provider: 'z_ai' | 'claude' | 'codex';
   timestamp: string;
   percentage: number;
 }
@@ -59,7 +73,11 @@ declare global {
       connectProvider: (provider: string) => void;
       disconnectProvider: (provider: string) => void;
       refreshUsage: () => void;
-      getProviderStatus: () => Promise<{ z_ai: boolean; claude: boolean }>;
+      getProviderStatus: () => Promise<{
+        z_ai: boolean;
+        claude: boolean;
+        codex: boolean;
+      }>;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onProviderConnected: (
         callback: (event: any, provider: string) => void
@@ -99,6 +117,11 @@ declare global {
       openDebugWindow: () => void;
       getIconSettings: () => Promise<IconSettings>;
       setIconSettings: (settings: IconSettings) => void;
+      getProviderAccentColors: () => Promise<ProviderAccentColors>;
+      setProviderAccentColor: (
+        provider: string,
+        color: string
+      ) => Promise<{ success: boolean; error?: string }>;
       startSession: (provider: string) => void;
       setProviderCommand: (provider: string, command: string) => void;
       getProviderCommands: () => Promise<Record<string, string> | null>;

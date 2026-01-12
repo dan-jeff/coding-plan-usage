@@ -1,5 +1,10 @@
 import React from 'react';
-import { ProviderData, UpdateStatusData, IconSettings } from '../types';
+import {
+  ProviderData,
+  UpdateStatusData,
+  IconSettings,
+  ProviderAccentColors,
+} from '../types';
 import { styles, theme } from '../theme';
 
 interface SettingsViewProps {
@@ -24,6 +29,9 @@ interface SettingsViewProps {
   iconSettings: IconSettings;
   onIconSettingsChange: (settings: IconSettings) => void;
   onCommandChange: (key: string, command: string) => void;
+  providerColors: ProviderAccentColors;
+  onProviderColorChange: (provider: string, color: string) => Promise<void>;
+  onProviderColorReset: (provider: string) => Promise<void>;
 }
 
 export const SettingsView = ({
@@ -46,6 +54,9 @@ export const SettingsView = ({
   iconSettings,
   onIconSettingsChange,
   onCommandChange,
+  providerColors,
+  onProviderColorChange,
+  onProviderColorReset,
 }: SettingsViewProps) => {
   return (
     <div>
@@ -271,6 +282,63 @@ export const SettingsView = ({
                 }}
               />
             </div>
+            <div
+              style={{ ...styles.settingRow, gap: '8px', paddingTop: '4px' }}
+            >
+              <span style={styles.settingLabel}>Accent color</span>
+              <div
+                style={{ display: 'flex', gap: '8px', alignItems: 'center' }}
+              >
+                <input
+                  type="color"
+                  value={
+                    providerColors?.[key as keyof typeof providerColors] ||
+                    '#000000'
+                  }
+                  onChange={(e) => onProviderColorChange?.(key, e.target.value)}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    backgroundColor: 'transparent',
+                  }}
+                />
+                <button
+                  onClick={() => onProviderColorReset?.(key)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '4px',
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: 'transparent',
+                    color: theme.textSec,
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                  }}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+            {key === 'codex' && (
+              <div
+                style={{ ...styles.settingRow, gap: '8px', paddingTop: '4px' }}
+              >
+                <span style={styles.settingLabel}>Show Code Review (PRs)</span>
+                <input
+                  type="checkbox"
+                  checked={iconSettings.showCodeReview}
+                  onChange={(e) =>
+                    onIconSettingsChange({
+                      ...iconSettings,
+                      showCodeReview: e.target.checked,
+                    })
+                  }
+                  style={styles.checkbox}
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>

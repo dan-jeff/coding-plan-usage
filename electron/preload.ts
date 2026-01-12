@@ -76,6 +76,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     thresholdWarning: number;
     thresholdCritical: number;
   }) => ipcRenderer.send('set-icon-settings', settings),
+  getProviderAccentColors: () =>
+    ipcRenderer.invoke('get-provider-accent-colors'),
+  setProviderAccentColor: (provider: string, color: string) =>
+    ipcRenderer.invoke('set-provider-accent-color', { provider, color }),
   getProviderCommands: () => ipcRenderer.invoke('get-provider-commands'),
   setProviderCommand: (provider: string, command: string) =>
     ipcRenderer.send('set-provider-command', { provider, command }),

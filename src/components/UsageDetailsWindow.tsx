@@ -1,11 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { UsageHistoryEntry } from '../types';
+import {
+  UsageHistoryEntry,
+  ProviderAccentColors,
+  DEFAULT_PROVIDER_COLORS,
+} from '../types';
 import { styles, theme } from '../theme';
 import { UsageDetails } from './UsageDetails';
 
 export const UsageDetailsWindow = () => {
   const [usageHistory, setUsageHistory] = useState<UsageHistoryEntry[]>([]);
   const [activeProviders, setActiveProviders] = useState<string[]>([]);
+  const [providerColors, setProviderColors] = useState<ProviderAccentColors>(
+    DEFAULT_PROVIDER_COLORS
+  );
 
   useEffect(() => {
     const loadUsageHistory = async () => {
@@ -49,11 +56,20 @@ export const UsageDetailsWindow = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const loadProviderColors = async () => {
+      const colors = await window.electronAPI.getProviderAccentColors();
+      setProviderColors(colors);
+    };
+    loadProviderColors();
+  }, []);
+
   return (
     <div style={styles.container}>
       <UsageDetails
         data={usageHistory}
         activeProviders={activeProviders}
+        providerColors={providerColors}
         onBack={() => {
           window.close();
         }}

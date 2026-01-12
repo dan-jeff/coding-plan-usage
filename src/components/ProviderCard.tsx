@@ -38,9 +38,13 @@ export const ProviderCard = ({
               onClick={() => {
                 if (window.electronAPI.startSession) {
                   setIsStarted(true);
-                  window.electronAPI.startSession(
-                    data.label === 'Z.ai' ? 'z_ai' : 'claude'
-                  );
+                  const providerKey =
+                    data.label === 'Z.ai'
+                      ? 'z_ai'
+                      : data.label === 'ChatGPT Codex'
+                        ? 'codex'
+                        : 'claude';
+                  window.electronAPI.startSession(providerKey);
                   // Schedule updates
                   setTimeout(() => window.electronAPI.refreshUsage(), 1000);
                   setTimeout(() => window.electronAPI.refreshUsage(), 10000);

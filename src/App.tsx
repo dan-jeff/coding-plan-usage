@@ -6,7 +6,13 @@ import {
   LayoutDashboard,
   X,
 } from 'lucide-react';
-import { ProviderData, UpdateStatusData, UsageHistoryEntry } from './types';
+import {
+  ProviderData,
+  UpdateStatusData,
+  UsageHistoryEntry,
+  ProviderAccentColors,
+  DEFAULT_PROVIDER_COLORS,
+} from './types';
 import { styles, theme } from './theme';
 import { ProviderCard } from './components/ProviderCard';
 import { SettingsView } from './components/SettingsView';
@@ -28,10 +34,20 @@ function App() {
     thresholdWarning: 50,
     thresholdCritical: 80,
     historyPeriod: 'week',
+    showCodeReview: true,
   });
+  const [providerColors, setProviderColors] = useState<ProviderAccentColors>(
+    DEFAULT_PROVIDER_COLORS
+  );
   const [providers, setProviders] = useState<{ [key: string]: ProviderData }>({
     z_ai: { label: 'Z.ai', connected: false, usage: null, command: '' },
     claude: { label: 'Claude', connected: false, usage: null, command: '' },
+    codex: {
+      label: 'ChatGPT Codex',
+      connected: false,
+      usage: null,
+      command: '',
+    },
   });
   const [updateStatus, setUpdateStatus] = useState<
     UpdateStatusData['type'] | 'idle'
@@ -98,6 +114,7 @@ function App() {
             ...prev,
             z_ai: { ...prev['z_ai'], connected: status.z_ai },
             claude: { ...prev['claude'], connected: status.claude },
+            codex: { ...prev['codex'], connected: status.codex },
           }));
         }
       } catch (err) {
@@ -195,6 +212,7 @@ function App() {
             thresholdWarning: settings.thresholdWarning ?? 50,
             thresholdCritical: settings.thresholdCritical ?? 80,
             historyPeriod: settings.historyPeriod || 'week',
+            showCodeReview: settings.showCodeReview ?? true,
           });
         }
       } catch (err) {
@@ -202,6 +220,18 @@ function App() {
       }
     };
     loadIconSettings();
+
+    const loadProviderColors = async () => {
+      try {
+        if (window.electronAPI.getProviderAccentColors) {
+          const colors = await window.electronAPI.getProviderAccentColors();
+          setProviderColors(colors);
+        }
+      } catch (err) {
+        console.error('Failed to load provider colors', err);
+      }
+    };
+    loadProviderColors();
 
     const loadUsageHistory = async () => {
       try {
@@ -376,6 +406,22 @@ function App() {
     }
   };
 
+  const handleProviderColorChange = async (provider: string, color: string) => {
+    setProviderColors((prev) => ({
+      ...prev,
+      [provider as keyof ProviderAccentColors]: color,
+    }));
+    if (window.electronAPI.setProviderAccentColor) {
+      await window.electronAPI.setProviderAccentColor(provider, color);
+    }
+  };
+
+  const handleProviderColorReset = async (provider: string) => {
+    const defaultColor =
+      DEFAULT_PROVIDER_COLORS[provider as keyof ProviderAccentColors];
+    await handleProviderColorChange(provider, defaultColor);
+  };
+
   const handleDragStart = (e: React.DragEvent, providerKey: string) => {
     e.dataTransfer.setData('text/plain', providerKey);
     // Optional: set drag effect
@@ -440,6 +486,21 @@ function App() {
       });
     }
 
+    const displayProviders = connectedProviders.map(([key, data]) => {
+      if (!iconSettings.showCodeReview && key === 'codex' && data.details) {
+        return [
+          key,
+          {
+            ...data,
+            details: data.details.filter(
+              (detail) => detail.label !== 'Code Review'
+            ),
+          },
+        ] as [string, ProviderData];
+      }
+      return [key, data] as [string, ProviderData];
+    });
+
     if (connectedProviders.length === 0) {
       if (!showSetupHint) return null;
 
@@ -491,7 +552,7 @@ function App() {
 
     return (
       <>
-        {connectedProviders.map(([key, data]) => (
+        {displayProviders.map(([key, data]) => (
           <div
             key={key}
             draggable
@@ -508,6 +569,7 @@ function App() {
           onClick={() => window.electronAPI.openUsageDetails()}
           historyPeriod={iconSettings.historyPeriod}
           activeProviders={activeProviders}
+          providerColors={providerColors}
         />
       </>
     );
@@ -602,6 +664,9 @@ function App() {
               iconSettings={iconSettings}
               onIconSettingsChange={handleIconSettingsChange}
               onCommandChange={handleCommandChange}
+              providerColors={providerColors}
+              onProviderColorChange={handleProviderColorChange}
+              onProviderColorReset={handleProviderColorReset}
             />
           )}
         </div>

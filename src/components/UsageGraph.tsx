@@ -8,7 +8,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { UsageHistoryEntry } from '../types';
+import { UsageHistoryEntry, ProviderAccentColors } from '../types';
 import { theme } from '../theme';
 
 interface UsageGraphProps {
@@ -16,12 +16,14 @@ interface UsageGraphProps {
   onClick: () => void;
   historyPeriod: 'week' | 'month' | 'all';
   activeProviders: string[];
+  providerColors?: ProviderAccentColors;
 }
 
 interface GraphData {
   date: string;
   z_ai: number;
   claude: number;
+  codex: number;
 }
 
 export const UsageGraph: React.FC<UsageGraphProps> = ({
@@ -29,6 +31,7 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
   onClick,
   historyPeriod,
   activeProviders,
+  providerColors,
 }) => {
   const processGraphData = (): GraphData[] => {
     const now = new Date();
@@ -47,8 +50,9 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
         break;
     }
 
-    const grouped: { [date: string]: { z_ai: number[]; claude: number[] } } =
-      {};
+    const grouped: {
+      [date: string]: { z_ai: number[]; claude: number[]; codex: number[] };
+    } = {};
 
     data.forEach((entry) => {
       const entryDate = new Date(entry.timestamp);
@@ -56,13 +60,15 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
 
       const dateKey = entryDate.toISOString().split('T')[0];
       if (!grouped[dateKey]) {
-        grouped[dateKey] = { z_ai: [], claude: [] };
+        grouped[dateKey] = { z_ai: [], claude: [], codex: [] };
       }
 
       if (entry.provider === 'z_ai') {
         grouped[dateKey].z_ai.push(entry.percentage);
       } else if (entry.provider === 'claude') {
         grouped[dateKey].claude.push(entry.percentage);
+      } else if (entry.provider === 'codex') {
+        grouped[dateKey].codex.push(entry.percentage);
       }
     });
 
@@ -71,6 +77,7 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
         date,
         z_ai: values.z_ai.length > 0 ? Math.max(...values.z_ai) : 0,
         claude: values.claude.length > 0 ? Math.max(...values.claude) : 0,
+        codex: values.codex.length > 0 ? Math.max(...values.codex) : 0,
       }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .slice(-30);
@@ -133,7 +140,12 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
                 }}
               />
               <span>
-                {entry.name === 'z_ai' ? 'Z.ai' : 'Claude'}: {entry.value}%
+                {entry.name === 'z_ai'
+                  ? 'Z.ai'
+                  : entry.name === 'claude'
+                    ? 'Claude'
+                    : 'ChatGPT Codex'}
+                : {entry.value}%
               </span>
             </div>
           ))}
@@ -200,24 +212,36 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
               <linearGradient id="zaiGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop
                   offset="5%"
-                  stopColor={theme.accentGreen}
+                  stopColor={providerColors?.z_ai || theme.accentGreen}
                   stopOpacity={0.8}
                 />
                 <stop
                   offset="95%"
-                  stopColor={theme.accentGreen}
+                  stopColor={providerColors?.z_ai || theme.accentGreen}
                   stopOpacity={0.1}
                 />
               </linearGradient>
               <linearGradient id="claudeGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop
                   offset="5%"
-                  stopColor={theme.accentYellow}
+                  stopColor={providerColors?.claude || theme.accentYellow}
                   stopOpacity={0.8}
                 />
                 <stop
                   offset="95%"
-                  stopColor={theme.accentYellow}
+                  stopColor={providerColors?.claude || theme.accentYellow}
+                  stopOpacity={0.1}
+                />
+              </linearGradient>
+              <linearGradient id="codexGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="5%"
+                  stopColor={providerColors?.codex || theme.accentGreen}
+                  stopOpacity={0.8}
+                />
+                <stop
+                  offset="95%"
+                  stopColor={providerColors?.codex || theme.accentGreen}
                   stopOpacity={0.1}
                 />
               </linearGradient>
@@ -247,7 +271,7 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
               <Area
                 type="monotone"
                 dataKey="z_ai"
-                stroke={theme.accentGreen}
+                stroke={providerColors?.z_ai || theme.accentGreen}
                 strokeWidth={2}
                 fillOpacity={1}
                 fill="url(#zaiGradient)"
@@ -257,10 +281,20 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
               <Area
                 type="monotone"
                 dataKey="claude"
-                stroke={theme.accentYellow}
+                stroke={providerColors?.claude || theme.accentYellow}
                 strokeWidth={2}
                 fillOpacity={1}
                 fill="url(#claudeGradient)"
+              />
+            )}
+            {activeProviders.includes('codex') && (
+              <Area
+                type="monotone"
+                dataKey="codex"
+                stroke={providerColors?.codex || theme.accentGreen}
+                strokeWidth={2}
+                fillOpacity={1}
+                fill="url(#codexGradient)"
               />
             )}
           </AreaChart>

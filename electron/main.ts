@@ -57,6 +57,12 @@ const DEFAULT_ICON_SETTINGS = {
   thresholdWarning: 50,
   thresholdCritical: 80,
   historyPeriod: 'week' as const,
+  showCodeReview: true,
+  providerColors: {
+    z_ai: '#10b981',
+    claude: '#f59e0b',
+    codex: '#10b981',
+  },
 };
 
 info('--- MAIN PROCESS STARTING ---');
@@ -139,6 +145,7 @@ function createTray() {
   const contextMenu = Menu.buildFromTemplate([
     { label: 'Z.ai: --%', enabled: false },
     { label: 'Claude: --%', enabled: false },
+    { label: 'Codex: --%', enabled: false },
     { type: 'separator' },
     {
       label: 'Settings',
@@ -193,6 +200,298 @@ declare global {
 }
 app.isQuitting = false;
 
+interface CaptureState {
+  requestHeadersMap: Map<string, Record<string, string>>;
+  interestingRequests: Map<string, string>;
+  bestCandidate: {
+    url: string;
+    headers: Record<string, string>;
+    body: string;
+    score: number;
+  } | null;
+  hasNavigatedToUsagePage: boolean;
+  fallbackTimeout: NodeJS.Timeout | null;
+}
+
+function setupCaptureFor(
+  webContents: Electron.WebContents,
+  provider: 'z_ai' | 'claude' | 'codex',
+  onComplete: (data: { url: string; headers: Record<string, string> }) => void
+): CaptureState {
+  const state: CaptureState = {
+    requestHeadersMap: new Map(),
+    interestingRequests: new Map(),
+    bestCandidate: null,
+    hasNavigatedToUsagePage: false,
+    fallbackTimeout: null,
+  };
+
+  try {
+    webContents.debugger.attach('1.3');
+    info('Debugger attached', { windowId: webContents.id, provider });
+  } catch (err) {
+    error('Debugger attach failed', {
+      windowId: webContents.id,
+      error: err instanceof Error ? err.message : String(err),
+      provider,
+      detail:
+        'This is critical - if this fails in production, network interception will not work',
+    });
+  }
+
+  webContents.debugger.on('detach', (event, reason) => {
+    info('Debugger detached', { windowId: webContents.id, reason, provider });
+  });
+
+  webContents.on('did-navigate', (event, url) => {
+    info('Window navigation', {
+      windowId: webContents.id,
+      url,
+      isMainFrame: true,
+      provider,
+    });
+
+    if (
+      provider === 'codex' &&
+      url.includes('chatgpt.com/codex/settings/usage')
+    ) {
+      state.hasNavigatedToUsagePage = true;
+    }
+  });
+
+  webContents.on('did-navigate-in-page', (event, url, isMainFrame) => {
+    info('Page navigation', {
+      windowId: webContents.id,
+      url,
+      isMainFrame,
+      provider,
+    });
+
+    if (
+      provider === 'codex' &&
+      isMainFrame &&
+      url.includes('chatgpt.com/codex/settings/usage')
+    ) {
+      state.hasNavigatedToUsagePage = true;
+    }
+  });
+
+  const handleCaptureComplete = (candidate: {
+    url: string;
+    headers: Record<string, string>;
+  }) => {
+    if (state.fallbackTimeout) {
+      clearTimeout(state.fallbackTimeout);
+      state.fallbackTimeout = null;
+    }
+
+    const cleanHeaders = { ...candidate.headers };
+    Object.keys(cleanHeaders).forEach((k) => {
+      if (k.toLowerCase() === 'cookie') {
+        delete cleanHeaders[k];
+      }
+    });
+
+    info('Capture complete', {
+      windowId: webContents.id,
+      url: candidate.url,
+      provider,
+    });
+    info('Successfully captured session', { provider, url: candidate.url });
+    onComplete({ url: candidate.url, headers: cleanHeaders });
+  };
+
+  webContents.debugger.on('message', async (event, method, params) => {
+    if (method === 'Network.requestWillBeSent') {
+      if (provider === 'z_ai') {
+        debug('Z.ai Navigation', { url: params.request.url });
+      }
+
+      state.requestHeadersMap.set(params.requestId, params.request.headers);
+
+      const pageUrl = params.request.url;
+      const isZaiUsagePage = pageUrl.includes(
+        'z.ai/manage-apikey/subscription'
+      );
+      const isClaudeUsagePage = pageUrl.includes('claude.ai/settings/usage');
+      const isCodexUsagePage = pageUrl.includes(
+        'chatgpt.com/codex/settings/usage'
+      );
+
+      if (provider === 'z_ai' && isZaiUsagePage) {
+        debug('Checking if Z.ai usage page', {
+          url: pageUrl,
+          isMatch: isZaiUsagePage,
+        });
+        state.hasNavigatedToUsagePage = true;
+        info('User navigated to usage page', {
+          provider: 'z_ai',
+          url: pageUrl,
+        });
+      } else if (provider === 'claude' && isClaudeUsagePage) {
+        state.hasNavigatedToUsagePage = true;
+        info('User navigated to usage page', { provider: 'claude' });
+      } else if (provider === 'codex' && isCodexUsagePage) {
+        state.hasNavigatedToUsagePage = true;
+        info('User navigated to usage page', {
+          provider: 'codex',
+          url: pageUrl,
+        });
+      }
+    }
+
+    if (method === 'Network.responseReceived') {
+      const url = params.response.url;
+      const requestId = params.requestId;
+
+      if (!state.hasNavigatedToUsagePage && provider !== 'codex') {
+        return;
+      }
+
+      if (provider === 'z_ai') {
+        const isZaiApi = url.includes('/api/monitor/usage/quota/limit');
+
+        if (isZaiApi) {
+          debug('Z.ai candidate URL', { url });
+          state.interestingRequests.set(requestId, url);
+        }
+      } else if (provider === 'claude') {
+        const isClaudeApi =
+          (url.includes('/usage') ||
+            url.includes('/stats') ||
+            url.includes('/api/organizations/')) &&
+          !url.includes('statsig') &&
+          !url.includes('bootstrap');
+
+        const isStatic =
+          url.match(/\.(js|css|png|svg|jpg|woff2?|ico|json)$/) ||
+          url.includes('_next/static');
+
+        if (isClaudeApi && !isStatic) {
+          debug('Claude candidate URL', { url });
+          state.interestingRequests.set(requestId, url);
+        }
+      } else if (provider === 'codex') {
+        const isCodexUsageApi = url.includes('/backend-api/wham/usage');
+        const isStatic =
+          url.match(/\.(js|css|png|svg|jpg|woff2?|ico|json)$/) ||
+          url.includes('_next/static');
+
+        if (isCodexUsageApi && !isStatic) {
+          debug('Codex candidate URL', { url });
+          state.interestingRequests.set(requestId, url);
+        }
+      }
+    }
+
+    if (method === 'Network.loadingFinished') {
+      const requestId = params.requestId;
+      if (state.interestingRequests.has(requestId)) {
+        const url = state.interestingRequests.get(requestId)!;
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          const { body } = await webContents.debugger.sendCommand(
+            'Network.getResponseBody',
+            { requestId }
+          );
+
+          if (!body) {
+            debug('Empty body, skipping', { url });
+            return;
+          }
+
+          let score = 0;
+          const headers = state.requestHeadersMap.get(requestId);
+
+          if (provider === 'z_ai') {
+            if (url.includes('/api/monitor/usage/quota/limit')) score += 50;
+
+            if (
+              body.includes('percent') ||
+              body.includes('quota') ||
+              body.includes('limit')
+            )
+              score += 5;
+          } else if (provider === 'claude') {
+            if (body.includes('percent_used')) score += 10;
+            if (body.includes('resets_at')) score += 10;
+            if (body.includes('utilization')) score += 5;
+            if (body.includes('limits')) score += 5;
+
+            if (url.includes('/api/organizations/') && url.includes('/usage'))
+              score += 25;
+            if (url.includes('/account/usage')) score += 15;
+          } else if (provider === 'codex') {
+            if (url.includes('/backend-api/wham/usage')) score += 50;
+            if (body.includes('rate_limit')) score += 10;
+            if (body.includes('code_review_rate_limit')) score += 10;
+            if (body.includes('used_percent')) score += 5;
+          }
+
+          if (score > 0) {
+            const meetsThreshold = score >= 35;
+            info('Response scored', { url, score, meetsThreshold, provider });
+            debug('Candidate scored', { url, score });
+            if (!state.bestCandidate || score > state.bestCandidate.score) {
+              state.bestCandidate = {
+                url,
+                headers: headers || {},
+                body,
+                score,
+              };
+              debug('New best candidate found', { url, score });
+            }
+
+            if (meetsThreshold) {
+              info('High-score match found, finishing capture', {
+                url,
+                score,
+              });
+              handleCaptureComplete({ url, headers: headers || {} });
+            } else if (!state.fallbackTimeout) {
+              info(
+                'Medium-score candidate found, starting 5s fallback timeout',
+                {
+                  url,
+                  score,
+                }
+              );
+              state.fallbackTimeout = setTimeout(() => {
+                if (state.bestCandidate) {
+                  info('Fallback timeout reached, using best candidate', {
+                    url: state.bestCandidate.url,
+                  });
+                  handleCaptureComplete({
+                    url: state.bestCandidate.url,
+                    headers: state.bestCandidate.headers,
+                  });
+                }
+              }, 5000);
+            }
+          }
+        } catch (e) {
+          error('Error retrieving body', {
+            url,
+            error: e instanceof Error ? e.message : String(e),
+          });
+        }
+        state.interestingRequests.delete(requestId);
+      }
+      state.requestHeadersMap.delete(requestId);
+    }
+
+    if (method === 'Network.loadingFailed') {
+      const requestId = params.requestId;
+      state.interestingRequests.delete(requestId);
+      state.requestHeadersMap.delete(requestId);
+    }
+  });
+
+  webContents.debugger.sendCommand('Network.enable');
+
+  return state;
+}
+
 app.whenReady().then(() => {
   createWindow();
   createTray();
@@ -223,7 +522,8 @@ app.on('before-quit', () => {
   app.isQuitting = true;
 });
 
-function authenticateProvider(provider: 'z_ai' | 'claude') {
+function authenticateProvider(provider: 'z_ai' | 'claude' | 'codex') {
+  let activeWindows: Set<Electron.BrowserWindow> = new Set();
   const authWindow = new BrowserWindow({
     width: 1000,
     height: 800,
@@ -236,8 +536,44 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
   });
 
   const url =
-    provider === 'z_ai' ? 'https://z.ai/login' : 'https://claude.ai/login';
+    provider === 'z_ai'
+      ? 'https://z.ai/login'
+      : provider === 'claude'
+        ? 'https://claude.ai/login'
+        : 'https://chatgpt.com/codex/settings/usage';
+
+  setupCaptureFor(authWindow.webContents, provider, (data) => {
+    handleCaptureComplete(provider, data, authWindow, activeWindows);
+  });
+
   authWindow.loadURL(url);
+
+  authWindow.webContents.on('did-create-window', (childWindow, details) => {
+    info('Child window created', {
+      url: details.url,
+      disposition: details.disposition,
+      parentWindowId: authWindow.webContents.id,
+      childWindowId: childWindow.webContents.id,
+      isParentDestroyed: authWindow.isDestroyed(),
+      isChildDestroyed: childWindow.isDestroyed(),
+      provider,
+    });
+
+    if (provider === 'codex') {
+      activeWindows.add(childWindow);
+      setupCaptureFor(childWindow.webContents, provider, (data) => {
+        handleCaptureComplete(provider, data, childWindow, activeWindows);
+      });
+
+      childWindow.on('closed', () => {
+        info('Child window closed', {
+          windowId: childWindow.webContents.id,
+          provider,
+        });
+        activeWindows.delete(childWindow);
+      });
+    }
+  });
 
   // Show instructions to user
   // const instructionUrl = provider === 'z_ai'
@@ -245,6 +581,10 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
   //   : 'https://claude.ai/settings/usage';
 
   authWindow.webContents.on('did-finish-load', () => {
+    const instructionText =
+      provider === 'codex'
+        ? 'Please ensure you are on the Codex usage page to complete setup'
+        : 'Please navigate to Subscription -> Click "Usage" Tab to complete setup';
     authWindow.webContents
       .executeJavaScript(
         `
@@ -252,7 +592,7 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
         const banner = document.createElement('div');
         banner.id = 'usage-tracker-instruction';
         banner.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #10b981; color: white; padding: 12px 20px; text-align: center; z-index: 999999; font-family: system-ui; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(0,0,0,0.2);';
-        banner.innerHTML = 'Please navigate to Subscription -> Click "Usage" Tab to complete setup';
+        banner.innerHTML = '${instructionText}';
         document.body.prepend(banner);
       }
     `
@@ -260,43 +600,12 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
       .catch(() => {});
   });
 
-  try {
-    authWindow.webContents.debugger.attach('1.3');
-    info('Debugger attached successfully', { provider });
-  } catch (err) {
-    error('Debugger attach failed', {
-      error: err instanceof Error ? err.message : String(err),
-      provider,
-      detail:
-        'This is critical - if this fails in production, network interception will not work',
-    });
-  }
-
-  authWindow.webContents.debugger.on('detach', (event, reason) => {
-    debug('Debugger detached', { reason });
-  });
-
-  const requestHeadersMap = new Map<string, Record<string, string>>();
-  const interestingRequests = new Map<string, string>();
-  let bestCandidate: {
-    url: string;
-    headers: Record<string, string>;
-    body: string;
-    score: number;
-  } | null = null;
-  let hasNavigatedToUsagePage = false;
-  let fallbackTimeout: NodeJS.Timeout | null = null;
-
   const handleCaptureComplete = (
-    p: 'z_ai' | 'claude',
-    candidate: { url: string; headers: Record<string, string> }
+    p: 'z_ai' | 'claude' | 'codex',
+    candidate: { url: string; headers: Record<string, string> },
+    window: BrowserWindow = authWindow,
+    windows?: Set<Electron.BrowserWindow>
   ) => {
-    if (fallbackTimeout) {
-      clearTimeout(fallbackTimeout);
-      fallbackTimeout = null;
-    }
-
-    // Filter out cookie header to rely on session
     const cleanHeaders = { ...candidate.headers };
     Object.keys(cleanHeaders).forEach((k) => {
       if (k.toLowerCase() === 'cookie') {
@@ -305,183 +614,22 @@ function authenticateProvider(provider: 'z_ai' | 'claude') {
     });
 
     info('Successfully captured session', { provider: p, url: candidate.url });
-    saveSession(p, { url: candidate.url, headers: cleanHeaders }); // Use cleanHeaders
+    saveSession(p, { url: candidate.url, headers: cleanHeaders });
 
-    if (!authWindow.isDestroyed()) {
-      authWindow.close();
+    if (!window.isDestroyed()) {
+      window.close();
     }
+
+    if (windows) {
+      windows.forEach((w) => {
+        if (!w.isDestroyed() && w !== window) {
+          w.close();
+        }
+      });
+    }
+
     mainWindow?.webContents.send('provider-connected', p);
   };
-
-  authWindow.webContents.debugger.on(
-    'message',
-    async (event, method, params) => {
-      if (method === 'Network.requestWillBeSent') {
-        // Log ALL URLs for z.ai debugging (production only visibility)
-        if (provider === 'z_ai') {
-          debug('Z.ai Navigation', { url: params.request.url });
-        }
-
-        requestHeadersMap.set(params.requestId, params.request.headers);
-
-        // Track when user navigates to the usage page
-        const pageUrl = params.request.url;
-        // Use more robust matching for navigation
-        const isZaiUsagePage = pageUrl.includes(
-          'z.ai/manage-apikey/subscription'
-        );
-        const isClaudeUsagePage = pageUrl.includes('claude.ai/settings/usage');
-
-        if (provider === 'z_ai' && isZaiUsagePage) {
-          debug('Checking if Z.ai usage page', {
-            url: pageUrl,
-            isMatch: isZaiUsagePage,
-          });
-          hasNavigatedToUsagePage = true;
-          info('User navigated to usage page', {
-            provider: 'z_ai',
-            url: pageUrl,
-          });
-        } else if (provider === 'claude' && isClaudeUsagePage) {
-          hasNavigatedToUsagePage = true;
-          info('User navigated to usage page', { provider: 'claude' });
-        }
-      }
-
-      if (method === 'Network.responseReceived') {
-        const url = params.response.url;
-        const requestId = params.requestId;
-
-        // Only capture requests made AFTER user navigates to usage page
-        if (!hasNavigatedToUsagePage) {
-          return;
-        }
-
-        if (provider === 'z_ai') {
-          // Target the specific endpoint we confirmed
-          const isZaiApi = url.includes('/api/monitor/usage/quota/limit');
-
-          if (isZaiApi) {
-            debug('Z.ai candidate URL', { url });
-            interestingRequests.set(requestId, url);
-          }
-        } else if (provider === 'claude') {
-          const isClaudeApi =
-            (url.includes('/usage') ||
-              url.includes('/stats') ||
-              url.includes('/api/organizations/')) &&
-            !url.includes('statsig') &&
-            !url.includes('bootstrap');
-
-          const isStatic =
-            url.match(/\.(js|css|png|svg|jpg|woff2?|ico|json)$/) ||
-            url.includes('_next/static');
-
-          if (isClaudeApi && !isStatic) {
-            debug('Claude candidate URL', { url });
-            interestingRequests.set(requestId, url);
-          }
-        }
-      }
-
-      if (method === 'Network.loadingFinished') {
-        const requestId = params.requestId;
-        if (interestingRequests.has(requestId)) {
-          const url = interestingRequests.get(requestId)!;
-          try {
-            // Wait a bit for the response body to be fully available
-            await new Promise((resolve) => setTimeout(resolve, 100));
-            const { body } = await authWindow.webContents.debugger.sendCommand(
-              'Network.getResponseBody',
-              { requestId }
-            );
-
-            if (!body) {
-              debug('Empty body, skipping', { url });
-              return;
-            }
-
-            let score = 0;
-            const headers = requestHeadersMap.get(requestId);
-
-            if (provider === 'z_ai') {
-              // High score for the confirmed endpoint
-              if (url.includes('/api/monitor/usage/quota/limit')) score += 50;
-
-              // Keep generic checks as backup but with lower score
-              if (
-                body.includes('percent') ||
-                body.includes('quota') ||
-                body.includes('limit')
-              )
-                score += 5;
-            } else if (provider === 'claude') {
-              if (body.includes('percent_used')) score += 10;
-              if (body.includes('resets_at')) score += 10;
-              if (body.includes('utilization')) score += 5;
-              if (body.includes('limits')) score += 5;
-
-              // Prioritize organization usage endpoints
-              if (url.includes('/api/organizations/') && url.includes('/usage'))
-                score += 25;
-              if (url.includes('/account/usage')) score += 15;
-            }
-
-            if (score > 0) {
-              debug('Candidate scored', { url, score });
-              if (!bestCandidate || score > bestCandidate.score) {
-                bestCandidate = { url, headers: headers || {}, body, score };
-                debug('New best candidate found', { url, score });
-              }
-
-              // High score threshold for immediate capture
-              if (score >= 35) {
-                info('High-score match found, finishing capture', {
-                  url,
-                  score,
-                });
-                handleCaptureComplete(provider, {
-                  url,
-                  headers: headers || {},
-                });
-              } else if (!fallbackTimeout) {
-                info(
-                  'Medium-score candidate found, starting 5s fallback timeout',
-                  { url, score }
-                );
-                fallbackTimeout = setTimeout(() => {
-                  if (bestCandidate && !authWindow.isDestroyed()) {
-                    info('Fallback timeout reached, using best candidate', {
-                      url: bestCandidate.url,
-                    });
-                    handleCaptureComplete(provider, {
-                      url: bestCandidate.url,
-                      headers: bestCandidate.headers,
-                    });
-                  }
-                }, 5000);
-              }
-            }
-          } catch (e) {
-            error('Error retrieving body', {
-              url,
-              error: e instanceof Error ? e.message : String(e),
-            });
-          }
-          interestingRequests.delete(requestId);
-        }
-        requestHeadersMap.delete(requestId);
-      }
-
-      if (method === 'Network.loadingFailed') {
-        const requestId = params.requestId;
-        interestingRequests.delete(requestId);
-        requestHeadersMap.delete(requestId);
-      }
-    }
-  );
-
-  authWindow.webContents.debugger.sendCommand('Network.enable');
 }
 
 // Get all provider CLI commands
@@ -489,6 +637,7 @@ ipcMain.handle('get-provider-commands', () => {
   return getSetting('providerCommands', {
     z_ai: '',
     claude: '',
+    codex: '',
   });
 });
 
@@ -501,6 +650,7 @@ ipcMain.on('set-provider-command', (event, { provider, command }) => {
   const commands = getSetting('providerCommands', {
     z_ai: '',
     claude: '',
+    codex: '',
   }) as Record<string, string>;
   commands[provider] = command;
   setSetting('providerCommands', commands);
@@ -522,6 +672,7 @@ ipcMain.on('start-session', async (event, provider) => {
     commands = getSetting('providerCommands', {
       z_ai: '',
       claude: '',
+      codex: '',
     }) as Record<string, string>;
   } catch (err) {
     error('Failed to load commands', {
@@ -659,7 +810,7 @@ Terminal=false
 
 ipcMain.on('connect-provider', (event, provider) => {
   info('Connect request for provider', { provider });
-  if (provider === 'z_ai' || provider === 'claude') {
+  if (provider === 'z_ai' || provider === 'claude' || provider === 'codex') {
     authenticateProvider(provider);
   }
 });
@@ -668,6 +819,7 @@ ipcMain.handle('get-provider-status', () => {
   return {
     z_ai: hasSession('z_ai'),
     claude: hasSession('claude'),
+    codex: hasSession('codex'),
   };
 });
 
@@ -679,7 +831,7 @@ ipcMain.on('refresh-usage', () => {
 
 ipcMain.on('disconnect-provider', (event, provider) => {
   info('Disconnect request for provider', { provider });
-  if (provider === 'z_ai' || provider === 'claude') {
+  if (provider === 'z_ai' || provider === 'claude' || provider === 'codex') {
     deleteSession(provider);
     mainWindow?.webContents.send('provider-disconnected', provider);
   }
@@ -691,7 +843,7 @@ ipcMain.on('quit-app', () => {
 });
 
 ipcMain.handle('get-provider-order', () => {
-  return getSetting('providerOrder', ['z_ai', 'claude']);
+  return getSetting('providerOrder', ['z_ai', 'claude', 'codex']);
 });
 
 ipcMain.on('set-provider-order', (event, order) => {
@@ -719,6 +871,49 @@ ipcMain.on('set-icon-settings', (event, settings) => {
     refreshAll(tray);
   }
 });
+
+ipcMain.handle('get-provider-accent-colors', () => {
+  const iconSettings = getSetting('iconSettings', DEFAULT_ICON_SETTINGS);
+  return (
+    iconSettings.providerColors || {
+      z_ai: '#10b981',
+      claude: '#f59e0b',
+      codex: '#10b981',
+    }
+  );
+});
+
+ipcMain.handle(
+  'set-provider-accent-color',
+  async (event, { provider, color }) => {
+    try {
+      if (
+        provider !== 'z_ai' &&
+        provider !== 'claude' &&
+        provider !== 'codex'
+      ) {
+        return { success: false, error: 'Invalid provider' };
+      }
+      const iconSettings = getSetting('iconSettings', DEFAULT_ICON_SETTINGS);
+      if (!iconSettings.providerColors) {
+        iconSettings.providerColors = {
+          z_ai: '#10b981',
+          claude: '#f59e0b',
+          codex: '#10b981',
+        };
+      }
+      iconSettings.providerColors[provider as 'z_ai' | 'claude' | 'codex'] =
+        color;
+      setSetting('iconSettings', iconSettings);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+);
 
 ipcMain.handle('get-app-version', () => {
   return app.getVersion();
