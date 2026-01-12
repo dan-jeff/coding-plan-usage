@@ -18,6 +18,7 @@ import {
   type ProviderConfig,
 } from './secure-store.js';
 import { debug, info, warn, error } from './logger.js';
+import { AntigravityClient } from './antigravity-client.js';
 
 const _dirname =
   typeof __dirname !== 'undefined'
@@ -60,7 +61,7 @@ export interface UsageDetail {
 }
 
 export interface PollResult {
-  provider: 'z_ai' | 'claude' | 'codex';
+  provider: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models';
   usage: string | null; // Keep for backward compatibility (Max %)
   details: UsageDetail[]; // New field
   error?: string;
@@ -81,6 +82,8 @@ const notifiedState: Record<string, boolean> = {
   z_ai: false,
   claude: false,
   codex: false,
+  gemini: false,
+  external_models: false,
 };
 
 // Add property to app to track quitting state
@@ -215,6 +218,92 @@ export async function refreshAll(tray: Tray) {
     debug('Codex is not configured');
   }
 
+  const agClient = new AntigravityClient();
+  debug('Checking Antigravity status');
+  try {
+    const splitStatus = await agClient.getStatus();
+    debug(
+      `[POLLER DEBUG] Gemini status: connected=${splitStatus.gemini.connected}, details.length=${splitStatus.gemini.details.length}, usagePercent=${splitStatus.gemini.usagePercent}`
+    );
+    debug(
+      `[POLLER DEBUG] External status: connected=${splitStatus.external.connected}, details.length=${splitStatus.external.details.length}, usagePercent=${splitStatus.external.usagePercent}`
+    );
+
+    // Handle Gemini provider
+    if (splitStatus.gemini.connected && splitStatus.gemini.details.length > 0) {
+      const usageStr = `${splitStatus.gemini.usagePercent}%`;
+      debug(
+        `[POLLER DEBUG] Pushing Gemini to results: provider=gemini, usage=${usageStr}, details.length=${splitStatus.gemini.details.length}`
+      );
+      results.push({
+        provider: 'gemini',
+        usage: usageStr,
+        details: splitStatus.gemini.details,
+      });
+
+      addUsageHistory('gemini', splitStatus.gemini.usagePercent);
+      debug(
+        `[POLLER DEBUG] Calling notifyUsageUpdate with: provider=gemini, usage=${usageStr}, details.length=${splitStatus.gemini.details.length}`
+      );
+      notifyUsageUpdate('gemini', usageStr, splitStatus.gemini.details);
+      debug('[POLLER DEBUG] notifyUsageUpdate completed for Gemini');
+    } else {
+      debug('Gemini is not connected or has no usage data');
+      results.push({
+        provider: 'gemini',
+        usage: null,
+        details: [],
+      });
+    }
+
+    // Handle External Models provider
+    if (
+      splitStatus.external.connected &&
+      splitStatus.external.details.length > 0
+    ) {
+      const usageStr = `${splitStatus.external.usagePercent}%`;
+      debug(
+        `[POLLER DEBUG] Pushing External Models to results: provider=external_models, usage=${usageStr}, details.length=${splitStatus.external.details.length}`
+      );
+      results.push({
+        provider: 'external_models',
+        usage: usageStr,
+        details: splitStatus.external.details,
+      });
+
+      addUsageHistory('external_models', splitStatus.external.usagePercent);
+      debug(
+        `[POLLER DEBUG] Calling notifyUsageUpdate with: provider=external_models, usage=${usageStr}, details.length=${splitStatus.external.details.length}`
+      );
+      notifyUsageUpdate(
+        'external_models',
+        usageStr,
+        splitStatus.external.details
+      );
+      debug('[POLLER DEBUG] notifyUsageUpdate completed for External Models');
+    } else {
+      debug('External Models is not connected or has no usage data');
+      results.push({
+        provider: 'external_models',
+        usage: null,
+        details: [],
+      });
+    }
+  } catch (err) {
+    const errorStr = String(err);
+    error(`Error fetching Antigravity status: ${errorStr}`);
+    results.push({
+      provider: 'gemini',
+      usage: null,
+      details: [],
+    });
+    results.push({
+      provider: 'external_models',
+      usage: null,
+      details: [],
+    });
+  }
+
   updateTray(tray, results);
 }
 
@@ -223,10 +312,18 @@ function notifyUsageUpdate(
   usage: string | null,
   details: UsageDetail[] = []
 ) {
+  debug(
+    `[NOTIFY DEBUG] notifyUsageUpdate called: provider=${provider}, usage=${usage}, details.length=${details.length}`
+  );
   const wins = BrowserWindow.getAllWindows();
-  wins.forEach((win) => {
+  debug(`[NOTIFY DEBUG] Found ${wins.length} browser windows`);
+  wins.forEach((win, index) => {
+    debug(
+      `[NOTIFY DEBUG] Sending usage-update to window ${index}: ${JSON.stringify({ provider, usage, details })}`
+    );
     win.webContents.send('usage-update', { provider, usage, details });
   });
+  debug('[NOTIFY DEBUG] notifyUsageUpdate completed');
 }
 
 function fetchUsage(
@@ -973,12 +1070,18 @@ function updateTray(tray: Tray, results: PollResult[]) {
   const zResult = results.find((r) => r.provider === 'z_ai');
   const claudeResult = results.find((r) => r.provider === 'claude');
   const codexResult = results.find((r) => r.provider === 'codex');
+  const geminiResult = results.find((r) => r.provider === 'gemini');
+  const externalResult = results.find((r) => r.provider === 'external_models');
 
   // Build Tooltip text
   const tooltipParts = [];
   if (zResult) tooltipParts.push(`Z.ai: ${zResult.usage}`);
   if (claudeResult) tooltipParts.push(`Claude: ${claudeResult.usage}`);
   if (codexResult) tooltipParts.push(`Codex: ${codexResult.usage}`);
+  if (geminiResult && geminiResult.usage)
+    tooltipParts.push(`Gemini: ${geminiResult.usage}`);
+  if (externalResult && externalResult.usage)
+    tooltipParts.push(`External Models: ${externalResult.usage}`);
   tray.setToolTip(tooltipParts.join('\n') || 'Usage Tray');
 
   // Update Tray Title
@@ -992,6 +1095,10 @@ function updateTray(tray: Tray, results: PollResult[]) {
   if (zResult) titleParts.push(`Z:${formatPercent(zResult.usage)}`);
   if (claudeResult) titleParts.push(`C:${formatPercent(claudeResult.usage)}`);
   if (codexResult) titleParts.push(`X:${formatPercent(codexResult.usage)}`);
+  if (geminiResult && geminiResult.usage)
+    titleParts.push(`G:${formatPercent(geminiResult.usage)}`);
+  if (externalResult && externalResult.usage)
+    titleParts.push(`E:${formatPercent(externalResult.usage)}`);
 
   const shortString = titleParts.join(' ');
   tray.setTitle(shortString);
@@ -1000,7 +1107,15 @@ function updateTray(tray: Tray, results: PollResult[]) {
   const zPercent = getPercent(zResult?.usage || null);
   const cPercent = getPercent(claudeResult?.usage || null);
   const codexPercent = getPercent(codexResult?.usage || null);
-  const maxUsage = Math.max(zPercent, cPercent, codexPercent);
+  const geminiPercent = getPercent(geminiResult?.usage || null);
+  const externalPercent = getPercent(externalResult?.usage || null);
+  const maxUsage = Math.max(
+    zPercent,
+    cPercent,
+    codexPercent,
+    geminiPercent,
+    externalPercent
+  );
 
   const iconSettings = getSetting<IconSettings>(
     'iconSettings',
@@ -1020,6 +1135,8 @@ function updateTray(tray: Tray, results: PollResult[]) {
   checkHighUsage(zResult);
   checkHighUsage(claudeResult);
   checkHighUsage(codexResult);
+  checkHighUsage(geminiResult);
+  checkHighUsage(externalResult);
 
   // Build Context Menu
   const menuTemplate: Electron.MenuItemConstructorOptions[] = [];
@@ -1044,6 +1161,22 @@ function updateTray(tray: Tray, results: PollResult[]) {
   if (hasSession('codex')) {
     menuTemplate.push({
       label: `Codex: ${codexResult?.usage || '...'}`,
+      enabled: false,
+    });
+  }
+
+  // Gemini Menu Item
+  if (geminiResult) {
+    menuTemplate.push({
+      label: `Gemini: ${geminiResult.usage || 'Not connected'}`,
+      enabled: false,
+    });
+  }
+
+  // External Models Menu Item
+  if (externalResult) {
+    menuTemplate.push({
+      label: `External Models: ${externalResult.usage || 'Not connected'}`,
       enabled: false,
     });
   }
@@ -1132,7 +1265,11 @@ function checkHighUsage(result: PollResult | undefined) {
           ? 'Z.ai'
           : result.provider === 'claude'
             ? 'Claude'
-            : 'Codex';
+            : result.provider === 'codex'
+              ? 'Codex'
+              : result.provider === 'gemini'
+                ? 'Gemini'
+                : 'External Models';
       new Notification({
         title: 'Usage Warning',
         body: `${providerName} is at ${result.usage} usage.`,

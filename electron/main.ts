@@ -62,6 +62,8 @@ const DEFAULT_ICON_SETTINGS = {
     z_ai: '#10b981',
     claude: '#f59e0b',
     codex: '#10b981',
+    gemini: '#4285f4',
+    external_models: '#8b5cf6',
   },
 };
 
@@ -146,6 +148,7 @@ function createTray() {
     { label: 'Z.ai: --%', enabled: false },
     { label: 'Claude: --%', enabled: false },
     { label: 'Codex: --%', enabled: false },
+    { label: 'Antigravity: --%', enabled: false },
     { type: 'separator' },
     {
       label: 'Settings',
@@ -215,7 +218,7 @@ interface CaptureState {
 
 function setupCaptureFor(
   webContents: Electron.WebContents,
-  provider: 'z_ai' | 'claude' | 'codex',
+  provider: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models',
   onComplete: (data: { url: string; headers: Record<string, string> }) => void
 ): CaptureState {
   const state: CaptureState = {
@@ -522,7 +525,9 @@ app.on('before-quit', () => {
   app.isQuitting = true;
 });
 
-function authenticateProvider(provider: 'z_ai' | 'claude' | 'codex') {
+function authenticateProvider(
+  provider: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models'
+) {
   let activeWindows: Set<Electron.BrowserWindow> = new Set();
   const authWindow = new BrowserWindow({
     width: 1000,
@@ -601,7 +606,7 @@ function authenticateProvider(provider: 'z_ai' | 'claude' | 'codex') {
   });
 
   const handleCaptureComplete = (
-    p: 'z_ai' | 'claude' | 'codex',
+    p: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models',
     candidate: { url: string; headers: Record<string, string> },
     window: BrowserWindow = authWindow,
     windows?: Set<Electron.BrowserWindow>
@@ -638,6 +643,8 @@ ipcMain.handle('get-provider-commands', () => {
     z_ai: '',
     claude: '',
     codex: '',
+    gemini: '',
+    external_models: '',
   });
 });
 
@@ -651,6 +658,8 @@ ipcMain.on('set-provider-command', (event, { provider, command }) => {
     z_ai: '',
     claude: '',
     codex: '',
+    gemini: '',
+    external_models: '',
   }) as Record<string, string>;
   commands[provider] = command;
   setSetting('providerCommands', commands);
@@ -673,6 +682,8 @@ ipcMain.on('start-session', async (event, provider) => {
       z_ai: '',
       claude: '',
       codex: '',
+      gemini: '',
+      external_models: '',
     }) as Record<string, string>;
   } catch (err) {
     error('Failed to load commands', {
@@ -820,6 +831,8 @@ ipcMain.handle('get-provider-status', () => {
     z_ai: hasSession('z_ai'),
     claude: hasSession('claude'),
     codex: hasSession('codex'),
+    gemini: hasSession('gemini'),
+    external_models: hasSession('external_models'),
   };
 });
 
@@ -831,7 +844,13 @@ ipcMain.on('refresh-usage', () => {
 
 ipcMain.on('disconnect-provider', (event, provider) => {
   info('Disconnect request for provider', { provider });
-  if (provider === 'z_ai' || provider === 'claude' || provider === 'codex') {
+  if (
+    provider === 'z_ai' ||
+    provider === 'claude' ||
+    provider === 'codex' ||
+    provider === 'gemini' ||
+    provider === 'external_models'
+  ) {
     deleteSession(provider);
     mainWindow?.webContents.send('provider-disconnected', provider);
   }
@@ -843,7 +862,13 @@ ipcMain.on('quit-app', () => {
 });
 
 ipcMain.handle('get-provider-order', () => {
-  return getSetting('providerOrder', ['z_ai', 'claude', 'codex']);
+  return getSetting('providerOrder', [
+    'z_ai',
+    'claude',
+    'codex',
+    'gemini',
+    'external_models',
+  ]);
 });
 
 ipcMain.on('set-provider-order', (event, order) => {
@@ -879,6 +904,8 @@ ipcMain.handle('get-provider-accent-colors', () => {
       z_ai: '#10b981',
       claude: '#f59e0b',
       codex: '#10b981',
+      gemini: '#4285f4',
+      external_models: '#8b5cf6',
     }
   );
 });
@@ -890,7 +917,9 @@ ipcMain.handle(
       if (
         provider !== 'z_ai' &&
         provider !== 'claude' &&
-        provider !== 'codex'
+        provider !== 'codex' &&
+        provider !== 'gemini' &&
+        provider !== 'external_models'
       ) {
         return { success: false, error: 'Invalid provider' };
       }
@@ -900,10 +929,13 @@ ipcMain.handle(
           z_ai: '#10b981',
           claude: '#f59e0b',
           codex: '#10b981',
+          gemini: '#4285f4',
+          external_models: '#8b5cf6',
         };
       }
-      iconSettings.providerColors[provider as 'z_ai' | 'claude' | 'codex'] =
-        color;
+      iconSettings.providerColors[
+        provider as 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models'
+      ] = color;
       setSetting('iconSettings', iconSettings);
       return { success: true };
     } catch (error) {

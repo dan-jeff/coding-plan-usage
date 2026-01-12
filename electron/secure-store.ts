@@ -17,7 +17,7 @@ interface StoredProviderConfig {
 }
 
 export function saveSession(
-  provider: 'z_ai' | 'claude' | 'codex',
+  provider: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models',
   data: ProviderConfig
 ) {
   if (!safeStorage.isEncryptionAvailable()) {
@@ -47,7 +47,7 @@ export function saveSession(
 }
 
 export function getSession(
-  provider: 'z_ai' | 'claude' | 'codex'
+  provider: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models'
 ): ProviderConfig | null {
   const stored = store.get(`${provider}_config`) as
     | StoredProviderConfig
@@ -86,11 +86,15 @@ export function getSession(
   }
 }
 
-export function hasSession(provider: 'z_ai' | 'claude' | 'codex'): boolean {
+export function hasSession(
+  provider: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models'
+): boolean {
   return !!store.get(`${provider}_config`);
 }
 
-export function deleteSession(provider: 'z_ai' | 'claude' | 'codex'): void {
+export function deleteSession(
+  provider: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models'
+): void {
   store.delete(`${provider}_config`);
   info('Deleted session', { provider });
 }
@@ -104,13 +108,13 @@ export function setSetting(key: string, value: unknown): void {
 }
 
 export interface UsageHistoryEntry {
-  provider: 'z_ai' | 'claude' | 'codex';
+  provider: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models';
   timestamp: string;
   percentage: number;
 }
 
 export function addUsageHistory(
-  provider: 'z_ai' | 'claude' | 'codex',
+  provider: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models',
   percentage: number
 ): void {
   const history: UsageHistoryEntry[] = store.get(

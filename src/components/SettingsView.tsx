@@ -231,7 +231,17 @@ export const SettingsView = ({
                   {data.connected ? 'Active' : 'Offline'}
                 </span>
               </div>
-              {data.connected ? (
+              {key === 'gemini' || key === 'external_models' ? (
+                <span
+                  style={{
+                    fontSize: '11px',
+                    color: theme.textSec,
+                    fontStyle: 'italic',
+                  }}
+                >
+                  Requires Antigravity running
+                </span>
+              ) : data.connected ? (
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     onClick={() => onReconnect(key)}
@@ -269,18 +279,46 @@ export const SettingsView = ({
                 value={data.command || ''}
                 placeholder="CLI command (e.g., claude x)"
                 onChange={(e) => onCommandChange(key, e.target.value)}
+                disabled={key === 'gemini' || key === 'external_models'}
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
-                  backgroundColor: theme.card,
-                  color: theme.textMain,
-                  border: `1px solid ${theme.border}`,
+                  backgroundColor:
+                    key === 'gemini' || key === 'external_models'
+                      ? 'transparent'
+                      : theme.card,
+                  color:
+                    key === 'gemini' || key === 'external_models'
+                      ? theme.textSec
+                      : theme.textMain,
+                  border:
+                    key === 'gemini' || key === 'external_models'
+                      ? 'none'
+                      : `1px solid ${theme.border}`,
                   borderRadius: '6px',
-                  padding: '8px 10px',
+                  padding:
+                    key === 'gemini' || key === 'external_models'
+                      ? '0'
+                      : '8px 10px',
                   fontSize: '12px',
                   outline: 'none',
+                  cursor:
+                    key === 'gemini' || key === 'external_models'
+                      ? 'default'
+                      : 'text',
                 }}
               />
+              {(key === 'gemini' || key === 'external_models') && (
+                <div
+                  style={{
+                    fontSize: '11px',
+                    color: theme.textSec,
+                    marginTop: '4px',
+                  }}
+                >
+                  Requires Antigravity running to sync usage
+                </div>
+              )}
             </div>
             <div
               style={{ ...styles.settingRow, gap: '8px', paddingTop: '4px' }}

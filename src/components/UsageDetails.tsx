@@ -24,6 +24,8 @@ interface GraphData {
   z_ai: number;
   claude: number;
   codex: number;
+  gemini: number;
+  external_models: number;
   stacked: number;
 }
 
@@ -62,7 +64,13 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
     }
 
     const grouped: {
-      [date: string]: { z_ai: number[]; claude: number[]; codex: number[] };
+      [date: string]: {
+        z_ai: number[];
+        claude: number[];
+        codex: number[];
+        gemini: number[];
+        external_models: number[];
+      };
     } = {};
 
     data.forEach((entry) => {
@@ -71,7 +79,13 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
 
       const dateKey = entryDate.toISOString().split('T')[0];
       if (!grouped[dateKey]) {
-        grouped[dateKey] = { z_ai: [], claude: [], codex: [] };
+        grouped[dateKey] = {
+          z_ai: [],
+          claude: [],
+          codex: [],
+          gemini: [],
+          external_models: [],
+        };
       }
 
       if (entry.provider === 'z_ai') {
@@ -80,6 +94,10 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
         grouped[dateKey].claude.push(entry.percentage);
       } else if (entry.provider === 'codex') {
         grouped[dateKey].codex.push(entry.percentage);
+      } else if (entry.provider === 'gemini') {
+        grouped[dateKey].gemini.push(entry.percentage);
+      } else if (entry.provider === 'external_models') {
+        grouped[dateKey].external_models.push(entry.percentage);
       }
     });
 
@@ -90,11 +108,19 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
           values.claude.length > 0 ? Math.max(...values.claude) : 0;
         const codexMax =
           values.codex.length > 0 ? Math.max(...values.codex) : 0;
+        const geminiMax =
+          values.gemini.length > 0 ? Math.max(...values.gemini) : 0;
+        const externalModelsMax =
+          values.external_models.length > 0
+            ? Math.max(...values.external_models)
+            : 0;
         return {
           date,
           z_ai: zaiMax,
           claude: claudeMax,
           codex: codexMax,
+          gemini: geminiMax,
+          external_models: externalModelsMax,
           stacked: zaiMax + claudeMax,
         };
       })
@@ -137,10 +163,16 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
     const zaiData = data.filter((d) => d.provider === 'z_ai');
     const claudeData = data.filter((d) => d.provider === 'claude');
     const codexData = data.filter((d) => d.provider === 'codex');
+    const geminiData = data.filter((d) => d.provider === 'gemini');
+    const externalModelsData = data.filter(
+      (d) => d.provider === 'external_models'
+    );
 
     const zaiValues = zaiData.map((d) => d.percentage);
     const claudeValues = claudeData.map((d) => d.percentage);
     const codexValues = codexData.map((d) => d.percentage);
+    const geminiValues = geminiData.map((d) => d.percentage);
+    const externalModelsValues = externalModelsData.map((d) => d.percentage);
 
     const avg = (arr: number[]) =>
       arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
@@ -165,6 +197,18 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
         max: max(codexValues),
         min: min(codexValues),
         count: codexValues.length,
+      },
+      gemini: {
+        avg: avg(geminiValues).toFixed(1),
+        max: max(geminiValues),
+        min: min(geminiValues),
+        count: geminiValues.length,
+      },
+      external_models: {
+        avg: avg(externalModelsValues).toFixed(1),
+        max: max(externalModelsValues),
+        min: min(externalModelsValues),
+        count: externalModelsValues.length,
       },
     };
   };
@@ -222,7 +266,11 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
                     ? 'Z.ai'
                     : entry.name === 'claude'
                       ? 'Claude'
-                      : 'ChatGPT Codex'}
+                      : entry.name === 'codex'
+                        ? 'ChatGPT Codex'
+                        : entry.name === 'gemini'
+                          ? 'Gemini (AG)'
+                          : 'Gemini External (AG)'}
                 </span>
               </div>
               <span style={{ fontWeight: 600 }}>{entry.value}%</span>
@@ -389,6 +437,88 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
               </div>
             </div>
           )}
+          {activeProviders.includes('gemini') && (
+            <div
+              style={{
+                backgroundColor: hexToRgba(providerColors.gemini, 0.1),
+                padding: '16px',
+                borderRadius: '8px',
+                border: `1px solid ${providerColors.gemini}30`,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '12px',
+                  color: theme.textSec,
+                  marginBottom: '8px',
+                }}
+              >
+                Gemini (AG) Statistics
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '8px',
+                  fontSize: '13px',
+                }}
+              >
+                <div>
+                  Average: <strong>{stats.gemini.avg}%</strong>
+                </div>
+                <div>
+                  Max: <strong>{stats.gemini.max}%</strong>
+                </div>
+                <div>
+                  Min: <strong>{stats.gemini.min}%</strong>
+                </div>
+                <div>
+                  Entries: <strong>{stats.gemini.count}</strong>
+                </div>
+              </div>
+            </div>
+          )}
+          {activeProviders.includes('external_models') && (
+            <div
+              style={{
+                backgroundColor: hexToRgba(providerColors.external_models, 0.1),
+                padding: '16px',
+                borderRadius: '8px',
+                border: `1px solid ${providerColors.external_models}30`,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '12px',
+                  color: theme.textSec,
+                  marginBottom: '8px',
+                }}
+              >
+                Gemini External (AG) Statistics
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '8px',
+                  fontSize: '13px',
+                }}
+              >
+                <div>
+                  Average: <strong>{stats.external_models.avg}%</strong>
+                </div>
+                <div>
+                  Max: <strong>{stats.external_models.max}%</strong>
+                </div>
+                <div>
+                  Min: <strong>{stats.external_models.min}%</strong>
+                </div>
+                <div>
+                  Entries: <strong>{stats.external_models.count}</strong>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={styles.card}>
@@ -477,6 +607,42 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
                       stopOpacity={0.1}
                     />
                   </linearGradient>
+                  <linearGradient
+                    id="geminiGradientDetail"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop
+                      offset="5%"
+                      stopColor={providerColors.gemini}
+                      stopOpacity={0.8}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor={providerColors.gemini}
+                      stopOpacity={0.1}
+                    />
+                  </linearGradient>
+                  <linearGradient
+                    id="externalModelsGradientDetail"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop
+                      offset="5%"
+                      stopColor={providerColors.external_models}
+                      stopOpacity={0.8}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor={providerColors.external_models}
+                      stopOpacity={0.1}
+                    />
+                  </linearGradient>
                 </defs>
                 <CartesianGrid
                   strokeDasharray="3 3"
@@ -526,6 +692,26 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
                     strokeWidth={2}
                     fillOpacity={1}
                     fill="url(#codexGradientDetail)"
+                  />
+                )}
+                {activeProviders.includes('gemini') && (
+                  <Area
+                    type="monotone"
+                    dataKey="gemini"
+                    stroke={providerColors.gemini}
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#geminiGradientDetail)"
+                  />
+                )}
+                {activeProviders.includes('external_models') && (
+                  <Area
+                    type="monotone"
+                    dataKey="external_models"
+                    stroke={providerColors.external_models}
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#externalModelsGradientDetail)"
                   />
                 )}
               </AreaChart>
@@ -780,6 +966,176 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
                       strokeWidth={2}
                       fillOpacity={1}
                       fill="url(#codexOnlyGradient)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </>
+          )}
+
+          {activeProviders.includes('gemini') && (
+            <>
+              <div style={styles.cardHeader}>
+                <span style={{ fontSize: '14px', fontWeight: 600 }}>
+                  Gemini (AG) Usage ({getHistoryPeriodLabel()})
+                </span>
+                <select
+                  value={historyPeriod}
+                  onChange={(e) =>
+                    setHistoryPeriod(e.target.value as 'week' | 'month' | 'all')
+                  }
+                  style={{
+                    backgroundColor: theme.card,
+                    color: theme.textMain,
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: '6px',
+                    padding: '4px 8px',
+                    outline: 'none',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    minWidth: '80px',
+                  }}
+                >
+                  <option value="week">Week</option>
+                  <option value="month">Month</option>
+                  <option value="all">All Time</option>
+                </select>
+              </div>
+              <div style={{ height: '200px', marginBottom: '24px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={graphData}>
+                    <defs>
+                      <linearGradient
+                        id="geminiOnlyGradient"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="5%"
+                          stopColor={providerColors.gemini}
+                          stopOpacity={0.8}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor={providerColors.gemini}
+                          stopOpacity={0.1}
+                        />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke={theme.border}
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={formatDate}
+                      stroke={theme.textSec}
+                      fontSize={11}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      domain={[0, 100]}
+                      stroke={theme.textSec}
+                      fontSize={11}
+                      tickLine={false}
+                      tickFormatter={(value) => `${value}%`}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area
+                      type="monotone"
+                      dataKey="gemini"
+                      stroke={providerColors.gemini}
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#geminiOnlyGradient)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </>
+          )}
+
+          {activeProviders.includes('external_models') && (
+            <>
+              <div style={styles.cardHeader}>
+                <span style={{ fontSize: '14px', fontWeight: 600 }}>
+                  Gemini External (AG) Usage ({getHistoryPeriodLabel()})
+                </span>
+                <select
+                  value={historyPeriod}
+                  onChange={(e) =>
+                    setHistoryPeriod(e.target.value as 'week' | 'month' | 'all')
+                  }
+                  style={{
+                    backgroundColor: theme.card,
+                    color: theme.textMain,
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: '6px',
+                    padding: '4px 8px',
+                    outline: 'none',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    minWidth: '80px',
+                  }}
+                >
+                  <option value="week">Week</option>
+                  <option value="month">Month</option>
+                  <option value="all">All Time</option>
+                </select>
+              </div>
+              <div style={{ height: '200px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={graphData}>
+                    <defs>
+                      <linearGradient
+                        id="externalModelsOnlyGradient"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="5%"
+                          stopColor={providerColors.external_models}
+                          stopOpacity={0.8}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor={providerColors.external_models}
+                          stopOpacity={0.1}
+                        />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke={theme.border}
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={formatDate}
+                      stroke={theme.textSec}
+                      fontSize={11}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      domain={[0, 100]}
+                      stroke={theme.textSec}
+                      fontSize={11}
+                      tickLine={false}
+                      tickFormatter={(value) => `${value}%`}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area
+                      type="monotone"
+                      dataKey="external_models"
+                      stroke={providerColors.external_models}
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#externalModelsOnlyGradient)"
                     />
                   </AreaChart>
                 </ResponsiveContainer>

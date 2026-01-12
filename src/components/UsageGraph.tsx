@@ -24,6 +24,8 @@ interface GraphData {
   z_ai: number;
   claude: number;
   codex: number;
+  gemini: number;
+  external_models: number;
 }
 
 export const UsageGraph: React.FC<UsageGraphProps> = ({
@@ -51,7 +53,13 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
     }
 
     const grouped: {
-      [date: string]: { z_ai: number[]; claude: number[]; codex: number[] };
+      [date: string]: {
+        z_ai: number[];
+        claude: number[];
+        codex: number[];
+        gemini: number[];
+        external_models: number[];
+      };
     } = {};
 
     data.forEach((entry) => {
@@ -60,7 +68,13 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
 
       const dateKey = entryDate.toISOString().split('T')[0];
       if (!grouped[dateKey]) {
-        grouped[dateKey] = { z_ai: [], claude: [], codex: [] };
+        grouped[dateKey] = {
+          z_ai: [],
+          claude: [],
+          codex: [],
+          gemini: [],
+          external_models: [],
+        };
       }
 
       if (entry.provider === 'z_ai') {
@@ -69,6 +83,10 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
         grouped[dateKey].claude.push(entry.percentage);
       } else if (entry.provider === 'codex') {
         grouped[dateKey].codex.push(entry.percentage);
+      } else if (entry.provider === 'gemini') {
+        grouped[dateKey].gemini.push(entry.percentage);
+      } else if (entry.provider === 'external_models') {
+        grouped[dateKey].external_models.push(entry.percentage);
       }
     });
 
@@ -78,6 +96,11 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
         z_ai: values.z_ai.length > 0 ? Math.max(...values.z_ai) : 0,
         claude: values.claude.length > 0 ? Math.max(...values.claude) : 0,
         codex: values.codex.length > 0 ? Math.max(...values.codex) : 0,
+        gemini: values.gemini.length > 0 ? Math.max(...values.gemini) : 0,
+        external_models:
+          values.external_models.length > 0
+            ? Math.max(...values.external_models)
+            : 0,
       }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .slice(-30);
@@ -144,7 +167,11 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
                   ? 'Z.ai'
                   : entry.name === 'claude'
                     ? 'Claude'
-                    : 'ChatGPT Codex'}
+                    : entry.name === 'codex'
+                      ? 'ChatGPT Codex'
+                      : entry.name === 'gemini'
+                        ? 'Gemini (AG)'
+                        : 'Gemini External (AG)'}
                 : {entry.value}%
               </span>
             </div>
@@ -245,6 +272,36 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
                   stopOpacity={0.1}
                 />
               </linearGradient>
+              <linearGradient id="geminiGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="5%"
+                  stopColor={providerColors?.gemini || '#4285f4'}
+                  stopOpacity={0.8}
+                />
+                <stop
+                  offset="95%"
+                  stopColor={providerColors?.gemini || '#4285f4'}
+                  stopOpacity={0.1}
+                />
+              </linearGradient>
+              <linearGradient
+                id="externalModelsGradient"
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
+                <stop
+                  offset="5%"
+                  stopColor={providerColors?.external_models || '#8b5cf6'}
+                  stopOpacity={0.8}
+                />
+                <stop
+                  offset="95%"
+                  stopColor={providerColors?.external_models || '#8b5cf6'}
+                  stopOpacity={0.1}
+                />
+              </linearGradient>
             </defs>
             <CartesianGrid
               strokeDasharray="3 3"
@@ -295,6 +352,26 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
                 strokeWidth={2}
                 fillOpacity={1}
                 fill="url(#codexGradient)"
+              />
+            )}
+            {activeProviders.includes('gemini') && (
+              <Area
+                type="monotone"
+                dataKey="gemini"
+                stroke={providerColors?.gemini || '#4285f4'}
+                strokeWidth={2}
+                fillOpacity={1}
+                fill="url(#geminiGradient)"
+              />
+            )}
+            {activeProviders.includes('external_models') && (
+              <Area
+                type="monotone"
+                dataKey="external_models"
+                stroke={providerColors?.external_models || '#8b5cf6'}
+                strokeWidth={2}
+                fillOpacity={1}
+                fill="url(#externalModelsGradient)"
               />
             )}
           </AreaChart>

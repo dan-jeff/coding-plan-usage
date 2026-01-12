@@ -64,11 +64,19 @@ export const UsageDetailsWindow = () => {
     loadProviderColors();
   }, []);
 
+  const providersInHistory = Array.from(
+    new Set(usageHistory.map((h) => h.provider))
+  );
+
+  const displayProviders = Array.from(
+    new Set([...activeProviders, ...providersInHistory])
+  );
+
   return (
     <div style={styles.container}>
       <UsageDetails
         data={usageHistory}
-        activeProviders={activeProviders}
+        activeProviders={displayProviders}
         providerColors={providerColors}
         onBack={() => {
           window.close();

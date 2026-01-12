@@ -2,12 +2,16 @@ export interface ProviderAccentColors {
   z_ai: string;
   claude: string;
   codex: string;
+  gemini: string;
+  external_models: string;
 }
 
 export const DEFAULT_PROVIDER_COLORS: ProviderAccentColors = {
   z_ai: '#10b981',
   claude: '#f59e0b',
   codex: '#10b981',
+  gemini: '#4285f4',
+  external_models: '#8b5cf6',
 };
 
 export interface IconSettings {
@@ -19,7 +23,7 @@ export interface IconSettings {
 }
 
 export interface UsageHistoryEntry {
-  provider: 'z_ai' | 'claude' | 'codex';
+  provider: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models';
   timestamp: string;
   percentage: number;
 }
@@ -77,6 +81,8 @@ declare global {
         z_ai: boolean;
         claude: boolean;
         codex: boolean;
+        gemini: boolean;
+        external_models: boolean;
       }>;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onProviderConnected: (

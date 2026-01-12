@@ -12,6 +12,9 @@ export const ProviderCard = ({
 }) => {
   const [isStarted, setIsStarted] = useState(false);
   const hasCommand = data.command && data.command.trim() !== '';
+  const isAntigravity = data.label === 'Antigravity';
+  const primaryUsagePercent = data.details?.[0]?.percentage ?? 0;
+  const isActive = data.connected && primaryUsagePercent > 0;
 
   return (
     <div style={styles.card}>
@@ -24,16 +27,22 @@ export const ProviderCard = ({
                 width: '6px',
                 height: '6px',
                 borderRadius: '50%',
-                backgroundColor: data.connected
+                backgroundColor: isActive
                   ? theme.accentGreen
-                  : theme.textSec,
+                  : data.connected && !isActive
+                    ? theme.accentRed
+                    : theme.textSec,
               }}
             />
             <span style={{ fontSize: '12px', color: theme.textSec }}>
-              {data.connected ? 'Active' : 'Offline'}
+              {isActive
+                ? 'Active'
+                : data.connected && !isActive
+                  ? 'Inactive'
+                  : 'Offline'}
             </span>
           </div>
-          {hasCommand && data.connected && (
+          {hasCommand && !isAntigravity && data.connected && !isActive && (
             <button
               onClick={() => {
                 if (window.electronAPI.startSession) {
@@ -111,6 +120,12 @@ export const ProviderCard = ({
           style={{ padding: '10px 0', fontSize: '13px', color: theme.textSec }}
         >
           No usage data available.
+        </div>
+      ) : isAntigravity ? (
+        <div
+          style={{ padding: '10px 0', fontSize: '13px', color: theme.textSec }}
+        >
+          Antigravity not running. Open it to sync.
         </div>
       ) : (
         <div

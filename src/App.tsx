@@ -48,6 +48,18 @@ function App() {
       usage: null,
       command: '',
     },
+    gemini: {
+      label: 'Gemini (AG)',
+      connected: false,
+      usage: null,
+      command: '',
+    },
+    external_models: {
+      label: 'Gemini External (AG)',
+      connected: false,
+      usage: null,
+      command: '',
+    },
   });
   const [updateStatus, setUpdateStatus] = useState<
     UpdateStatusData['type'] | 'idle'
@@ -115,6 +127,14 @@ function App() {
             z_ai: { ...prev['z_ai'], connected: status.z_ai },
             claude: { ...prev['claude'], connected: status.claude },
             codex: { ...prev['codex'], connected: status.codex },
+            gemini: {
+              ...prev['gemini'],
+              connected: status.gemini,
+            },
+            external_models: {
+              ...prev['external_models'],
+              connected: status.external_models,
+            },
           }));
         }
       } catch (err) {
@@ -275,10 +295,15 @@ function App() {
         setIsRefreshing(false);
         setProviders((prev) => {
           if (!prev[provider]) return prev;
+
+          // If we receive usage data, the provider is connected
+          const isConnected = usage !== null && usage !== 'Error';
+
           return {
             ...prev,
             [provider]: {
               ...prev[provider],
+              connected: isConnected,
               usage,
               details: details || prev[provider].details,
             },
