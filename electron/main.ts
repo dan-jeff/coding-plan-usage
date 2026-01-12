@@ -863,11 +863,11 @@ ipcMain.on('quit-app', () => {
 
 ipcMain.handle('get-provider-order', () => {
   return getSetting('providerOrder', [
-    'z_ai',
-    'claude',
     'codex',
+    'claude',
     'gemini',
     'external_models',
+    'z_ai',
   ]);
 });
 

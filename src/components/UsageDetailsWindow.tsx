@@ -7,9 +7,28 @@ import {
 import { styles, theme } from '../theme';
 import { UsageDetails } from './UsageDetails';
 
+const DEFAULT_PROVIDER_ORDER = [
+  'codex',
+  'claude',
+  'gemini',
+  'external_models',
+  'z_ai',
+];
+
+const PROVIDER_LABELS: Record<string, string> = {
+  z_ai: 'Z.ai',
+  claude: 'Claude',
+  codex: 'ChatGPT Codex',
+  gemini: 'Gemini (AG)',
+  external_models: 'Gemini External (AG)',
+};
+
 export const UsageDetailsWindow = () => {
   const [usageHistory, setUsageHistory] = useState<UsageHistoryEntry[]>([]);
   const [activeProviders, setActiveProviders] = useState<string[]>([]);
+  const [providerOrder, setProviderOrder] = useState<string[]>(
+    DEFAULT_PROVIDER_ORDER
+  );
   const [providerColors, setProviderColors] = useState<ProviderAccentColors>(
     DEFAULT_PROVIDER_COLORS
   );
@@ -31,6 +50,16 @@ export const UsageDetailsWindow = () => {
     return () => {
       unsubscribe();
     };
+  }, []);
+
+  useEffect(() => {
+    const loadProviderOrder = async () => {
+      const order = await window.electronAPI.getProviderOrder();
+      if (order && Array.isArray(order) && order.length > 0) {
+        setProviderOrder(order);
+      }
+    };
+    loadProviderOrder();
   }, []);
 
   useEffect(() => {
@@ -64,12 +93,30 @@ export const UsageDetailsWindow = () => {
     loadProviderColors();
   }, []);
 
+  const getOrderedProviders = (providers: string[]) => {
+    const order =
+      providerOrder.length > 0 ? providerOrder : DEFAULT_PROVIDER_ORDER;
+    const orderIndex = new Map(order.map((key, index) => [key, index]));
+
+    return [...providers].sort((a, b) => {
+      const indexA = orderIndex.get(a);
+      const indexB = orderIndex.get(b);
+
+      if (indexA === undefined && indexB === undefined) {
+        return (PROVIDER_LABELS[a] || a).localeCompare(PROVIDER_LABELS[b] || b);
+      }
+      if (indexA === undefined) return 1;
+      if (indexB === undefined) return -1;
+      return indexA - indexB;
+    });
+  };
+
   const providersInHistory = Array.from(
     new Set(usageHistory.map((h) => h.provider))
   );
 
-  const displayProviders = Array.from(
-    new Set([...activeProviders, ...providersInHistory])
+  const displayProviders = getOrderedProviders(
+    Array.from(new Set([...activeProviders, ...providersInHistory]))
   );
 
   return (

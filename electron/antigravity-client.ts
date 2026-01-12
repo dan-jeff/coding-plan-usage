@@ -103,36 +103,24 @@ export class AntigravityClient {
         (d) => !d.label.startsWith('Gemini')
       );
 
-      // For Gemini: show only the first model with usage > 0%, or the first one if all are 0%
-      let geminiDetails: UsageDetail[] = [];
-      if (allGeminiDetails.length > 0) {
-        const modelWithUsage = allGeminiDetails.find((d) => d.percentage > 0);
-        const selectedModel = modelWithUsage || allGeminiDetails[0];
+      const consolidateDetails = (
+        detailsToConsolidate: UsageDetail[],
+        label: string
+      ): UsageDetail | null => {
+        if (detailsToConsolidate.length === 0) {
+          return null;
+        }
 
-        // Rename to "Gemini Pro 3"
-        geminiDetails = [
-          {
-            ...selectedModel,
-            label: 'Gemini Pro 3',
-          },
-        ];
-      }
-
-      // For External: consolidate all models into a single entry
-      let externalDetails: UsageDetail[] = [];
-      if (allExternalDetails.length > 0) {
-        // Use the max percentage (they're all the same, but use max to be safe)
         const maxPercentage = Math.max(
-          ...allExternalDetails.map((d) => d.percentage),
+          ...detailsToConsolidate.map((d) => d.percentage),
           0
         );
 
-        // Find the earliest reset time (shortest time remaining)
         let earliestResetTime: string | undefined;
         let shortestTimeRemaining: number | undefined;
         let shortestDisplayReset: string | undefined;
 
-        for (const detail of allExternalDetails) {
+        for (const detail of detailsToConsolidate) {
           if (detail.resetTime) {
             if (
               !earliestResetTime ||
@@ -145,19 +133,59 @@ export class AntigravityClient {
           }
         }
 
-        // Create a single consolidated entry
-        externalDetails = [
-          {
-            label: 'External Models',
-            percentage: maxPercentage,
-            limit: '',
-            used: '',
-            displayReset: shortestDisplayReset || 'Unavailable',
-            timeRemainingMinutes: shortestTimeRemaining,
-            resetTime: earliestResetTime,
-          },
-        ];
+        return {
+          label,
+          percentage: maxPercentage,
+          limit: '',
+          used: '',
+          displayReset: shortestDisplayReset || 'Unavailable',
+          timeRemainingMinutes: shortestTimeRemaining,
+          resetTime: earliestResetTime,
+        };
+      };
+
+      // For Gemini: split into Pro and Flash entries
+      const geminiProDetails = allGeminiDetails.filter((detail) =>
+        detail.label.toLowerCase().includes('pro')
+      );
+      const geminiFlashDetails = allGeminiDetails.filter((detail) =>
+        detail.label.toLowerCase().includes('flash')
+      );
+      const otherGeminiDetails = allGeminiDetails.filter(
+        (detail) =>
+          !detail.label.toLowerCase().includes('pro') &&
+          !detail.label.toLowerCase().includes('flash')
+      );
+
+      const geminiDetails: UsageDetail[] = [];
+      const geminiProSummary = consolidateDetails(
+        geminiProDetails,
+        'Gemini 3 Pro'
+      );
+      if (geminiProSummary) {
+        geminiDetails.push(geminiProSummary);
       }
+
+      const geminiFlashSummary = consolidateDetails(
+        geminiFlashDetails,
+        'Gemini 3 Flash'
+      );
+      if (geminiFlashSummary) {
+        geminiDetails.push(geminiFlashSummary);
+      }
+
+      if (otherGeminiDetails.length > 0) {
+        geminiDetails.push(...otherGeminiDetails);
+      }
+
+      // For External: consolidate all models into a single entry
+      const externalDetailsSummary = consolidateDetails(
+        allExternalDetails,
+        'External Models'
+      );
+      const externalDetails = externalDetailsSummary
+        ? [externalDetailsSummary]
+        : [];
 
       const geminiUsagePercent = Math.max(
         ...geminiDetails.map((d) => d.percentage),

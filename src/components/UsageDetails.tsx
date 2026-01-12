@@ -29,6 +29,39 @@ interface GraphData {
   stacked: number;
 }
 
+type ProviderKey = keyof ProviderAccentColors;
+
+const PROVIDER_CONFIG: Record<
+  ProviderKey,
+  { label: string; statsTitle: string; usageTitle: string }
+> = {
+  z_ai: {
+    label: 'Z.ai',
+    statsTitle: 'Z.ai Statistics',
+    usageTitle: 'Z.ai Usage',
+  },
+  claude: {
+    label: 'Claude',
+    statsTitle: 'Claude Statistics',
+    usageTitle: 'Claude Usage',
+  },
+  codex: {
+    label: 'ChatGPT Codex',
+    statsTitle: 'ChatGPT Codex Statistics',
+    usageTitle: 'ChatGPT Codex Usage',
+  },
+  gemini: {
+    label: 'Gemini (AG)',
+    statsTitle: 'Gemini (AG) Statistics',
+    usageTitle: 'Gemini (AG) Usage',
+  },
+  external_models: {
+    label: 'Gemini External (AG)',
+    statsTitle: 'Gemini External (AG) Statistics',
+    usageTitle: 'Gemini External (AG) Usage',
+  },
+};
+
 export const UsageDetails: React.FC<UsageDetailsProps> = ({
   data,
   onBack,
@@ -45,6 +78,10 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
     const b = parseInt(hex.slice(5, 7), 16);
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
+
+  const orderedProviders = activeProviders.filter(
+    (provider): provider is ProviderKey => provider in PROVIDER_CONFIG
+  );
 
   const processGraphData = (): GraphData[] => {
     const now = new Date();
@@ -214,6 +251,13 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
   };
 
   const stats = calculateStats();
+  const statsByProvider = stats as Record<
+    ProviderKey,
+    { avg: string; max: number; min: number; count: number }
+  >;
+  const detailGradientId = (provider: ProviderKey) =>
+    `${provider}-detail-gradient`;
+  const onlyGradientId = (provider: ProviderKey) => `${provider}-only-gradient`;
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -262,15 +306,8 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
                   }}
                 />
                 <span>
-                  {entry.name === 'z_ai'
-                    ? 'Z.ai'
-                    : entry.name === 'claude'
-                      ? 'Claude'
-                      : entry.name === 'codex'
-                        ? 'ChatGPT Codex'
-                        : entry.name === 'gemini'
-                          ? 'Gemini (AG)'
-                          : 'Gemini External (AG)'}
+                  {PROVIDER_CONFIG[entry.name as ProviderKey]?.label ||
+                    entry.name}
                 </span>
               </div>
               <span style={{ fontWeight: 600 }}>{entry.value}%</span>
@@ -314,211 +351,54 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
             marginBottom: '20px',
           }}
         >
-          {activeProviders.includes('z_ai') && (
-            <div
-              style={{
-                backgroundColor: hexToRgba(providerColors.z_ai, 0.1),
-                padding: '16px',
-                borderRadius: '8px',
-                border: `1px solid ${providerColors.z_ai}30`,
-              }}
-            >
+          {orderedProviders.map((provider) => {
+            const statsEntry = statsByProvider[provider];
+            const config = PROVIDER_CONFIG[provider];
+            const color = providerColors[provider];
+
+            return (
               <div
+                key={provider}
                 style={{
-                  fontSize: '12px',
-                  color: theme.textSec,
-                  marginBottom: '8px',
+                  backgroundColor: hexToRgba(color, 0.1),
+                  padding: '16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${color}30`,
                 }}
               >
-                Z.ai Statistics
-              </div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '8px',
-                  fontSize: '13px',
-                }}
-              >
-                <div>
-                  Average: <strong>{stats.z_ai.avg}%</strong>
+                <div
+                  style={{
+                    fontSize: '12px',
+                    color: theme.textSec,
+                    marginBottom: '8px',
+                  }}
+                >
+                  {config.statsTitle}
                 </div>
-                <div>
-                  Max: <strong>{stats.z_ai.max}%</strong>
-                </div>
-                <div>
-                  Min: <strong>{stats.z_ai.min}%</strong>
-                </div>
-                <div>
-                  Entries: <strong>{stats.z_ai.count}</strong>
-                </div>
-              </div>
-            </div>
-          )}
-          {activeProviders.includes('claude') && (
-            <div
-              style={{
-                backgroundColor: hexToRgba(providerColors.claude, 0.1),
-                padding: '16px',
-                borderRadius: '8px',
-                border: `1px solid ${providerColors.claude}30`,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '12px',
-                  color: theme.textSec,
-                  marginBottom: '8px',
-                }}
-              >
-                Claude Statistics
-              </div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '8px',
-                  fontSize: '13px',
-                }}
-              >
-                <div>
-                  Average: <strong>{stats.claude.avg}%</strong>
-                </div>
-                <div>
-                  Max: <strong>{stats.claude.max}%</strong>
-                </div>
-                <div>
-                  Min: <strong>{stats.claude.min}%</strong>
-                </div>
-                <div>
-                  Entries: <strong>{stats.claude.count}</strong>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '8px',
+                    fontSize: '13px',
+                  }}
+                >
+                  <div>
+                    Average: <strong>{statsEntry.avg}%</strong>
+                  </div>
+                  <div>
+                    Max: <strong>{statsEntry.max}%</strong>
+                  </div>
+                  <div>
+                    Min: <strong>{statsEntry.min}%</strong>
+                  </div>
+                  <div>
+                    Entries: <strong>{statsEntry.count}</strong>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-          {activeProviders.includes('codex') && (
-            <div
-              style={{
-                backgroundColor: hexToRgba(providerColors.codex, 0.1),
-                padding: '16px',
-                borderRadius: '8px',
-                border: `1px solid ${providerColors.codex}30`,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '12px',
-                  color: theme.textSec,
-                  marginBottom: '8px',
-                }}
-              >
-                ChatGPT Codex Statistics
-              </div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '8px',
-                  fontSize: '13px',
-                }}
-              >
-                <div>
-                  Average: <strong>{stats.codex.avg}%</strong>
-                </div>
-                <div>
-                  Max: <strong>{stats.codex.max}%</strong>
-                </div>
-                <div>
-                  Min: <strong>{stats.codex.min}%</strong>
-                </div>
-                <div>
-                  Entries: <strong>{stats.codex.count}</strong>
-                </div>
-              </div>
-            </div>
-          )}
-          {activeProviders.includes('gemini') && (
-            <div
-              style={{
-                backgroundColor: hexToRgba(providerColors.gemini, 0.1),
-                padding: '16px',
-                borderRadius: '8px',
-                border: `1px solid ${providerColors.gemini}30`,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '12px',
-                  color: theme.textSec,
-                  marginBottom: '8px',
-                }}
-              >
-                Gemini (AG) Statistics
-              </div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '8px',
-                  fontSize: '13px',
-                }}
-              >
-                <div>
-                  Average: <strong>{stats.gemini.avg}%</strong>
-                </div>
-                <div>
-                  Max: <strong>{stats.gemini.max}%</strong>
-                </div>
-                <div>
-                  Min: <strong>{stats.gemini.min}%</strong>
-                </div>
-                <div>
-                  Entries: <strong>{stats.gemini.count}</strong>
-                </div>
-              </div>
-            </div>
-          )}
-          {activeProviders.includes('external_models') && (
-            <div
-              style={{
-                backgroundColor: hexToRgba(providerColors.external_models, 0.1),
-                padding: '16px',
-                borderRadius: '8px',
-                border: `1px solid ${providerColors.external_models}30`,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '12px',
-                  color: theme.textSec,
-                  marginBottom: '8px',
-                }}
-              >
-                Gemini External (AG) Statistics
-              </div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '8px',
-                  fontSize: '13px',
-                }}
-              >
-                <div>
-                  Average: <strong>{stats.external_models.avg}%</strong>
-                </div>
-                <div>
-                  Max: <strong>{stats.external_models.max}%</strong>
-                </div>
-                <div>
-                  Min: <strong>{stats.external_models.min}%</strong>
-                </div>
-                <div>
-                  Entries: <strong>{stats.external_models.count}</strong>
-                </div>
-              </div>
-            </div>
-          )}
+            );
+          })}
         </div>
 
         <div style={styles.card}>
@@ -553,96 +433,27 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={graphData}>
                 <defs>
-                  <linearGradient
-                    id="zaiGradientDetail"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop
-                      offset="5%"
-                      stopColor={providerColors.z_ai}
-                      stopOpacity={0.8}
-                    />
-                    <stop
-                      offset="95%"
-                      stopColor={providerColors.z_ai}
-                      stopOpacity={0.1}
-                    />
-                  </linearGradient>
-                  <linearGradient
-                    id="claudeGradientDetail"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop
-                      offset="5%"
-                      stopColor={providerColors.claude}
-                      stopOpacity={0.8}
-                    />
-                    <stop
-                      offset="95%"
-                      stopColor={providerColors.claude}
-                      stopOpacity={0.1}
-                    />
-                  </linearGradient>
-                  <linearGradient
-                    id="codexGradientDetail"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop
-                      offset="5%"
-                      stopColor={providerColors.codex}
-                      stopOpacity={0.8}
-                    />
-                    <stop
-                      offset="95%"
-                      stopColor={providerColors.codex}
-                      stopOpacity={0.1}
-                    />
-                  </linearGradient>
-                  <linearGradient
-                    id="geminiGradientDetail"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop
-                      offset="5%"
-                      stopColor={providerColors.gemini}
-                      stopOpacity={0.8}
-                    />
-                    <stop
-                      offset="95%"
-                      stopColor={providerColors.gemini}
-                      stopOpacity={0.1}
-                    />
-                  </linearGradient>
-                  <linearGradient
-                    id="externalModelsGradientDetail"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop
-                      offset="5%"
-                      stopColor={providerColors.external_models}
-                      stopOpacity={0.8}
-                    />
-                    <stop
-                      offset="95%"
-                      stopColor={providerColors.external_models}
-                      stopOpacity={0.1}
-                    />
-                  </linearGradient>
+                  {orderedProviders.map((provider) => (
+                    <linearGradient
+                      key={provider}
+                      id={detailGradientId(provider)}
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="5%"
+                        stopColor={providerColors[provider]}
+                        stopOpacity={0.8}
+                      />
+                      <stop
+                        offset="95%"
+                        stopColor={providerColors[provider]}
+                        stopOpacity={0.1}
+                      />
+                    </linearGradient>
+                  ))}
                 </defs>
                 <CartesianGrid
                   strokeDasharray="3 3"
@@ -664,56 +475,17 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
                   tickFormatter={(value) => `${value}%`}
                 />
                 <Tooltip content={<CustomTooltip />} />
-                {activeProviders.includes('z_ai') && (
+                {orderedProviders.map((provider) => (
                   <Area
+                    key={provider}
                     type="monotone"
-                    dataKey="z_ai"
-                    stroke={providerColors.z_ai}
+                    dataKey={provider}
+                    stroke={providerColors[provider]}
                     strokeWidth={2}
                     fillOpacity={1}
-                    fill="url(#zaiGradientDetail)"
+                    fill={`url(#${detailGradientId(provider)})`}
                   />
-                )}
-                {activeProviders.includes('claude') && (
-                  <Area
-                    type="monotone"
-                    dataKey="claude"
-                    stroke={providerColors.claude}
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#claudeGradientDetail)"
-                  />
-                )}
-                {activeProviders.includes('codex') && (
-                  <Area
-                    type="monotone"
-                    dataKey="codex"
-                    stroke={providerColors.codex}
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#codexGradientDetail)"
-                  />
-                )}
-                {activeProviders.includes('gemini') && (
-                  <Area
-                    type="monotone"
-                    dataKey="gemini"
-                    stroke={providerColors.gemini}
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#geminiGradientDetail)"
-                  />
-                )}
-                {activeProviders.includes('external_models') && (
-                  <Area
-                    type="monotone"
-                    dataKey="external_models"
-                    stroke={providerColors.external_models}
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#externalModelsGradientDetail)"
-                  />
-                )}
+                ))}
               </AreaChart>
             </ResponsiveContainer>
           </div>

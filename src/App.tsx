@@ -22,6 +22,14 @@ import { UsageDetails } from './components/UsageDetails';
 import { UsageDetailsWindow } from './components/UsageDetailsWindow';
 import type { IconSettings } from './types';
 
+const DEFAULT_PROVIDER_ORDER = [
+  'codex',
+  'claude',
+  'gemini',
+  'external_models',
+  'z_ai',
+];
+
 function App() {
   const [view, setView] = useState<'dashboard' | 'settings'>('dashboard');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -29,7 +37,9 @@ function App() {
   const [autoUpdate, setAutoUpdate] = useState(true);
   const [appVersion, setAppVersion] = useState('');
   const [refreshInterval, setRefreshInterval] = useState(15);
-  const [providerOrder, setProviderOrder] = useState<string[]>([]);
+  const [providerOrder, setProviderOrder] = useState<string[]>(
+    DEFAULT_PROVIDER_ORDER
+  );
   const [iconSettings, setIconSettings] = useState<IconSettings>({
     thresholdWarning: 50,
     thresholdCritical: 80,
@@ -447,6 +457,24 @@ function App() {
     await handleProviderColorChange(provider, defaultColor);
   };
 
+  const getSortedProviders = (entries: [string, ProviderData][]) => {
+    const order =
+      providerOrder.length > 0 ? providerOrder : DEFAULT_PROVIDER_ORDER;
+    const orderIndex = new Map(order.map((key, index) => [key, index]));
+
+    return [...entries].sort((a, b) => {
+      const indexA = orderIndex.get(a[0]);
+      const indexB = orderIndex.get(b[0]);
+
+      if (indexA === undefined && indexB === undefined) {
+        return a[1].label.localeCompare(b[1].label);
+      }
+      if (indexA === undefined) return 1;
+      if (indexB === undefined) return -1;
+      return indexA - indexB;
+    });
+  };
+
   const handleDragStart = (e: React.DragEvent, providerKey: string) => {
     e.dataTransfer.setData('text/plain', providerKey);
     // Optional: set drag effect
@@ -490,26 +518,10 @@ function App() {
   };
 
   const renderDashboard = () => {
-    const connectedProviders = Object.entries(providers).filter(
-      ([, data]) => data.connected
+    const connectedProviders = getSortedProviders(
+      Object.entries(providers).filter(([, data]) => data.connected)
     );
-    const activeProviders = Object.entries(providers)
-      .filter(([, data]) => data.connected)
-      .map(([key]) => key);
-
-    // Sort based on providerOrder
-    if (providerOrder.length > 0) {
-      connectedProviders.sort((a, b) => {
-        const indexA = providerOrder.indexOf(a[0]);
-        const indexB = providerOrder.indexOf(b[0]);
-
-        // Items not in the order list go to the end
-        const safeIndexA = indexA === -1 ? 999 : indexA;
-        const safeIndexB = indexB === -1 ? 999 : indexB;
-
-        return safeIndexA - safeIndexB;
-      });
-    }
+    const activeProviders = connectedProviders.map(([key]) => key);
 
     const displayProviders = connectedProviders.map(([key, data]) => {
       if (!iconSettings.showCodeReview && key === 'codex' && data.details) {
@@ -678,6 +690,7 @@ function App() {
               refreshInterval={refreshInterval}
               handleRefreshIntervalChange={handleRefreshIntervalChange}
               providers={providers}
+              orderedProviders={getSortedProviders(Object.entries(providers))}
               onConnect={connectProvider}
               onReconnect={handleReconnect}
               onDisconnect={handleDisconnect}

@@ -18,6 +18,7 @@ interface SettingsViewProps {
     e: React.ChangeEvent<HTMLSelectElement>
   ) => void;
   providers: { [key: string]: ProviderData };
+  orderedProviders: [string, ProviderData][];
   onConnect: (key: string) => void;
   onReconnect: (key: string) => void;
   onDisconnect: (key: string) => void;
@@ -43,6 +44,7 @@ export const SettingsView = ({
   refreshInterval,
   handleRefreshIntervalChange,
   providers,
+  orderedProviders,
   onConnect,
   onReconnect,
   onDisconnect,
@@ -207,7 +209,7 @@ export const SettingsView = ({
 
       <div style={styles.settingsSection}>
         <div style={styles.sectionTitle}>Providers</div>
-        {Object.entries(providers).map(([key, data]) => (
+        {orderedProviders.map(([key, data]) => (
           <div
             key={key}
             style={{
