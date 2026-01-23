@@ -335,7 +335,8 @@ function fetchUsage(
     if (
       provider === 'codex' &&
       (requestUrl.includes('/codex/settings/usage') ||
-        requestUrl.includes('/codex/settings/usage.data'))
+        requestUrl.includes('/codex/settings/usage.data') ||
+        requestUrl.includes('daily-token-usage-breakdown'))
     ) {
       requestUrl = 'https://chatgpt.com/backend-api/wham/usage';
     }
