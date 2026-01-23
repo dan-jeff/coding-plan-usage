@@ -759,8 +759,9 @@ function parseCodexHtml(body: string): {
 
   for (const article of articles) {
     const paragraphMatch = article.match(/<p[^>]*>(.*?)<\/p>/);
+    // Relaxed regex to match percentage followed by "remaining" text anywhere nearby
     const percentageMatch = article.match(
-      /<span[^>]*>(\d+)%<\/span>\s*<span[^>]*>\s*remaining\s*<\/span>/i
+      /<span[^>]*>\s*(\d+)%\s*<\/span>[\s\S]*?remaining/i
     );
 
     if (!percentageMatch) {

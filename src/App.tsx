@@ -521,7 +521,25 @@ function App() {
     const connectedProviders = getSortedProviders(
       Object.entries(providers).filter(([, data]) => data.connected)
     );
-    const activeProviders = connectedProviders.map(([key]) => key);
+    const activeConnectedProviders = connectedProviders.map(([key]) => key);
+
+    const providersInHistory = Array.from(
+      new Set(usageHistory.map((h) => h.provider))
+    );
+
+    const graphProviders = Array.from(
+      new Set([...activeConnectedProviders, ...providersInHistory])
+    ).sort((a, b) => {
+      const order =
+        providerOrder.length > 0 ? providerOrder : DEFAULT_PROVIDER_ORDER;
+      const indexA = order.indexOf(a);
+      const indexB = order.indexOf(b);
+
+      if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      return indexA - indexB;
+    });
 
     const displayProviders = connectedProviders.map(([key, data]) => {
       if (!iconSettings.showCodeReview && key === 'codex' && data.details) {
@@ -605,7 +623,7 @@ function App() {
           data={usageHistory}
           onClick={() => window.electronAPI.openUsageDetails()}
           historyPeriod={iconSettings.historyPeriod}
-          activeProviders={activeProviders}
+          activeProviders={graphProviders}
           providerColors={providerColors}
         />
       </>

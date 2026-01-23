@@ -93,26 +93,99 @@ export class AntigravityClient {
     try {
       console.log('[Antigravity] Fetching user status...');
       const status = await this.fetchUserStatus();
-      const details = this.parseStatus(status);
+      const allPools = this.parseStatus(status);
 
-      // Split details into Gemini and External models
-      const allGeminiDetails = details.filter((d) =>
-        d.label.startsWith('Gemini')
-      );
-      const allExternalDetails = details.filter(
-        (d) => !d.label.startsWith('Gemini')
+      console.log(
+        '[Antigravity] Total pools from parseStatus:',
+        allPools.length
       );
 
+      // We need to track which pool came from which original model label
+      // since parseStatus now returns pool-aggregated data
+
+      // First, get all raw models to preserve their pool IDs
+      const rawModels =
+        status.userStatus?.cascadeModelConfigData?.clientModelConfigs || [];
+
+      // Create a map of model label -> pool ID
+      const modelToPool = new Map<string, string>();
+      for (const m of rawModels) {
+        if (m.label) {
+          modelToPool.set(m.label, this.inferPoolId(m.label));
+        }
+      }
+
+      // Now process all raw models with their pool information
+      const modelsWithPool = rawModels
+        .filter((m) => m.quotaInfo)
+        .map((m) => {
+          const label = m.label || 'Unknown Model';
+          const remainingFraction = m.quotaInfo?.remainingFraction ?? 1;
+          const percentage = Math.round((1 - remainingFraction) * 100);
+          const poolId = modelToPool.get(label) || 'default-pool';
+
+          let displayReset: string | undefined;
+          let timeRemainingMinutes: number | undefined;
+          let resetTime: string | undefined;
+
+          if (m.quotaInfo?.resetTime) {
+            resetTime = m.quotaInfo.resetTime;
+            const resetDate = new Date(m.quotaInfo.resetTime);
+            if (
+              !isNaN(resetDate.getTime()) &&
+              resetDate.getTime() > Date.now()
+            ) {
+              const diff = resetDate.getTime() - Date.now();
+              const totalMinutes = Math.round(diff / (1000 * 60));
+              timeRemainingMinutes = totalMinutes;
+              displayReset = this.formatTime(totalMinutes);
+            }
+          }
+
+          return {
+            label,
+            percentage,
+            poolId,
+            displayReset,
+            timeRemainingMinutes,
+            resetTime,
+          };
+        });
+
+      // Split into Gemini and External models
+      const geminiModels = modelsWithPool.filter((m) =>
+        m.poolId.includes('gemini')
+      );
+      const externalModels = modelsWithPool.filter(
+        (m) => !m.poolId.includes('gemini')
+      );
+
+      console.log('[Antigravity] Gemini models:', geminiModels.length);
+      console.log('[Antigravity] External models:', externalModels.length);
+
+      // For Gemini: split into Pro, Flash, and other
+      const geminiProModels = geminiModels.filter(
+        (m) => m.poolId === 'gemini-pro-pool'
+      );
+      const geminiFlashModels = geminiModels.filter(
+        (m) => m.poolId === 'gemini-flash-pool'
+      );
+      const otherGeminiModels = geminiModels.filter(
+        (m) =>
+          m.poolId !== 'gemini-pro-pool' && m.poolId !== 'gemini-flash-pool'
+      );
+
+      // Function to consolidate models into a single entry
       const consolidateDetails = (
-        detailsToConsolidate: UsageDetail[],
+        modelsToConsolidate: typeof modelsWithPool,
         label: string
       ): UsageDetail | null => {
-        if (detailsToConsolidate.length === 0) {
+        if (modelsToConsolidate.length === 0) {
           return null;
         }
 
         const maxPercentage = Math.max(
-          ...detailsToConsolidate.map((d) => d.percentage),
+          ...modelsToConsolidate.map((m) => m.percentage),
           0
         );
 
@@ -120,15 +193,15 @@ export class AntigravityClient {
         let shortestTimeRemaining: number | undefined;
         let shortestDisplayReset: string | undefined;
 
-        for (const detail of detailsToConsolidate) {
-          if (detail.resetTime) {
+        for (const model of modelsToConsolidate) {
+          if (model.resetTime) {
             if (
               !earliestResetTime ||
-              new Date(detail.resetTime) < new Date(earliestResetTime)
+              new Date(model.resetTime) < new Date(earliestResetTime)
             ) {
-              earliestResetTime = detail.resetTime;
-              shortestTimeRemaining = detail.timeRemainingMinutes;
-              shortestDisplayReset = detail.displayReset;
+              earliestResetTime = model.resetTime;
+              shortestTimeRemaining = model.timeRemainingMinutes;
+              shortestDisplayReset = model.displayReset;
             }
           }
         }
@@ -144,22 +217,11 @@ export class AntigravityClient {
         };
       };
 
-      // For Gemini: split into Pro and Flash entries
-      const geminiProDetails = allGeminiDetails.filter((detail) =>
-        detail.label.toLowerCase().includes('pro')
-      );
-      const geminiFlashDetails = allGeminiDetails.filter((detail) =>
-        detail.label.toLowerCase().includes('flash')
-      );
-      const otherGeminiDetails = allGeminiDetails.filter(
-        (detail) =>
-          !detail.label.toLowerCase().includes('pro') &&
-          !detail.label.toLowerCase().includes('flash')
-      );
-
+      // Build Gemini details
       const geminiDetails: UsageDetail[] = [];
+
       const geminiProSummary = consolidateDetails(
-        geminiProDetails,
+        geminiProModels,
         'Gemini 3 Pro'
       );
       if (geminiProSummary) {
@@ -167,20 +229,31 @@ export class AntigravityClient {
       }
 
       const geminiFlashSummary = consolidateDetails(
-        geminiFlashDetails,
+        geminiFlashModels,
         'Gemini 3 Flash'
       );
       if (geminiFlashSummary) {
         geminiDetails.push(geminiFlashSummary);
       }
 
-      if (otherGeminiDetails.length > 0) {
-        geminiDetails.push(...otherGeminiDetails);
+      if (otherGeminiModels.length > 0) {
+        // Add other Gemini models individually
+        geminiDetails.push(
+          ...otherGeminiModels.map((m) => ({
+            label: m.label,
+            percentage: m.percentage,
+            limit: '',
+            used: '',
+            displayReset: m.displayReset || 'Unavailable',
+            timeRemainingMinutes: m.timeRemainingMinutes,
+            resetTime: m.resetTime,
+          }))
+        );
       }
 
       // For External: consolidate all models into a single entry
       const externalDetailsSummary = consolidateDetails(
-        allExternalDetails,
+        externalModels,
         'External Models'
       );
       const externalDetails = externalDetailsSummary
@@ -295,6 +368,23 @@ export class AntigravityClient {
     }
   }
 
+  private isAntigravityProcess(commandLine: string): boolean {
+    const lowerCmd = commandLine.toLowerCase();
+
+    if (/--app_data_dir\s+antigravity\b/i.test(commandLine)) {
+      return true;
+    }
+
+    if (
+      lowerCmd.includes('\\antigravity\\') ||
+      lowerCmd.includes('/antigravity/')
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
   private async findProcessWindows(): Promise<ProcessInfo | null> {
     try {
       console.log(
@@ -316,9 +406,18 @@ export class AntigravityClient {
         processes = [processes];
       }
 
-      console.log('[Antigravity] Found', processes.length, 'process(es)');
+      const antigravityProcesses = processes.filter(
+        (proc: { CommandLine?: string; ProcessId?: number }) =>
+          proc.CommandLine && this.isAntigravityProcess(proc.CommandLine)
+      );
 
-      for (const proc of processes) {
+      console.log(
+        '[Antigravity] Found',
+        antigravityProcesses.length,
+        'Antigravity process(es)'
+      );
+
+      for (const proc of antigravityProcesses) {
         if (proc.CommandLine && proc.ProcessId) {
           const result = this.parseCommandLine(
             proc.ProcessId,
@@ -363,6 +462,14 @@ export class AntigravityClient {
               'CmdLine:',
               cmdLine
             );
+
+            if (!this.isAntigravityProcess(cmdLine)) {
+              console.log(
+                '[Antigravity] Skipping non-Antigravity process (likely Codeium)'
+              );
+              continue;
+            }
+
             const result = this.parseCommandLine(pid, cmdLine);
             if (result) {
               return result;
@@ -403,6 +510,14 @@ export class AntigravityClient {
             'CmdLine:',
             cmdLine
           );
+
+          if (!this.isAntigravityProcess(cmdLine)) {
+            console.log(
+              '[Antigravity] Skipping non-Antigravity process (likely Codeium)'
+            );
+            continue;
+          }
+
           const result = this.parseCommandLine(pid, cmdLine);
           if (result) {
             console.log('[Antigravity] Successfully parsed process info');
@@ -447,6 +562,28 @@ export class AntigravityClient {
     }
 
     return null;
+  }
+
+  private inferPoolId(label: string): string {
+    const lowerLabel = label.toLowerCase();
+
+    if (lowerLabel.includes('claude')) {
+      return 'claude-pool';
+    }
+
+    if (lowerLabel.includes('gemini') && lowerLabel.includes('pro')) {
+      return 'gemini-pro-pool';
+    }
+
+    if (lowerLabel.includes('gemini') && lowerLabel.includes('flash')) {
+      return 'gemini-flash-pool';
+    }
+
+    if (lowerLabel.includes('gpt')) {
+      return 'claude-pool';
+    }
+
+    return 'default-pool';
   }
 
   private async getListeningPorts(pid: number): Promise<number[]> {
@@ -846,7 +983,6 @@ export class AntigravityClient {
   }
 
   private parseStatus(data: AntigravityUserStatus): UsageDetail[] {
-    // Log the raw API response
     console.log(
       '[Antigravity] Raw API response:',
       JSON.stringify(data, null, 2)
@@ -861,18 +997,26 @@ export class AntigravityClient {
     const filteredModels = models.filter((m) => m.quotaInfo);
     console.log('[Antigravity] Models with quotaInfo:', filteredModels.length);
 
-    const results: UsageDetail[] = [];
+    const modelsWithPool: Array<{
+      label: string;
+      percentage: number;
+      poolId: string;
+      resetTime?: string;
+      displayReset?: string;
+      timeRemainingMinutes?: number;
+    }> = [];
 
-    // Process all models individually
     filteredModels.forEach((m, index) => {
       const label = m.label || 'Unknown Model';
       const remainingFraction = m.quotaInfo?.remainingFraction ?? 1;
       const percentage = Math.round((1 - remainingFraction) * 100);
+      const poolId = this.inferPoolId(label);
 
       console.log(`[Antigravity] Model ${index + 1}:`, {
         label,
         remainingFraction,
         percentage,
+        poolId,
         quotaInfo: m.quotaInfo,
       });
 
@@ -891,20 +1035,76 @@ export class AntigravityClient {
         }
       }
 
-      const result = {
+      modelsWithPool.push({
         label,
         percentage,
-        limit: '',
-        used: '',
-        displayReset: displayReset || 'Unavailable',
+        poolId,
+        displayReset,
         timeRemainingMinutes,
         resetTime,
-      };
-
-      console.log(`[Antigravity] Model ${index + 1} final result:`, result);
-      results.push(result);
+      });
     });
 
+    const poolMap = new Map<string, typeof modelsWithPool>();
+
+    for (const model of modelsWithPool) {
+      const existing = poolMap.get(model.poolId);
+      if (!existing) {
+        poolMap.set(model.poolId, [model]);
+      } else {
+        existing.push(model);
+      }
+    }
+
+    console.log('[Antigravity] Pools found:', poolMap.size);
+
+    const results: UsageDetail[] = [];
+
+    for (const [poolId, poolModels] of poolMap.entries()) {
+      const maxPercentage = Math.max(...poolModels.map((m) => m.percentage), 0);
+
+      let earliestResetTime: string | undefined;
+      let shortestTimeRemaining: number | undefined;
+      let shortestDisplayReset: string | undefined;
+
+      for (const model of poolModels) {
+        if (model.resetTime) {
+          if (
+            !earliestResetTime ||
+            new Date(model.resetTime) < new Date(earliestResetTime)
+          ) {
+            earliestResetTime = model.resetTime;
+            shortestTimeRemaining = model.timeRemainingMinutes;
+            shortestDisplayReset = model.displayReset;
+          }
+        }
+      }
+
+      const poolLabel = poolModels[0].label;
+
+      const result: UsageDetail = {
+        label: poolLabel,
+        percentage: maxPercentage,
+        limit: '',
+        used: '',
+        displayReset: shortestDisplayReset || 'Unavailable',
+        timeRemainingMinutes: shortestTimeRemaining,
+        resetTime: earliestResetTime,
+      };
+
+      console.log(`[Antigravity] Pool ${poolId}:`, {
+        modelCount: poolModels.length,
+        maxPercentage,
+        resetTime: earliestResetTime,
+        displayReset: shortestDisplayReset,
+      });
+
+      results.push(result);
+    }
+
+    results.sort((a, b) => b.percentage - a.percentage);
+
+    console.log('[Antigravity] Final results count:', results.length);
     return results;
   }
 
