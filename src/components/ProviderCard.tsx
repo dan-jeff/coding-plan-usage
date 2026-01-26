@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import { Play, Check } from 'lucide-react';
-import { ProviderData } from '../types';
+import { ProviderData, IconSettings } from '../types';
 import { styles, theme } from '../theme';
 import { GenericUsageDisplay } from './GenericUsageDisplay';
 
 export const ProviderCard = ({
   data,
+  onToggleMetricExclusion,
+  iconSettings,
 }: {
   data: ProviderData;
   onStartSession?: () => void;
+  onToggleMetricExclusion?: (label: string) => void;
+  iconSettings?: IconSettings;
 }) => {
   const [isStarted, setIsStarted] = useState(false);
   const hasCommand = data.command && data.command.trim() !== '';
@@ -102,16 +106,11 @@ export const ProviderCard = ({
         <div style={{ marginTop: '8px' }}>
           {data.details.map((detail, index) => (
             <div key={index} style={{ marginBottom: '16px' }}>
-              <div
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  marginBottom: '8px',
-                }}
-              >
-                {detail.label}
-              </div>
-              <GenericUsageDisplay detail={detail} />
+              <GenericUsageDisplay
+                detail={detail}
+                onToggleMetricExclusion={onToggleMetricExclusion}
+                iconSettings={iconSettings}
+              />
             </div>
           ))}
         </div>

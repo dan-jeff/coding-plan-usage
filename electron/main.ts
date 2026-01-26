@@ -58,6 +58,8 @@ const DEFAULT_ICON_SETTINGS = {
   thresholdCritical: 80,
   historyPeriod: 'week' as const,
   showCodeReview: true,
+  coloringMode: 'standard' as const,
+  excludedMetrics: [],
   providerColors: {
     z_ai: '#10b981',
     claude: '#f59e0b',

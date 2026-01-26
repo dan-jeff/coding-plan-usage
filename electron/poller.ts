@@ -1,6 +1,5 @@
 import {
   Tray,
-  Menu,
   net,
   app,
   Notification,
@@ -40,6 +39,8 @@ const DEFAULT_ICON_SETTINGS = {
   thresholdCritical: 80,
   historyPeriod: 'week' as const,
   showCodeReview: true,
+  coloringMode: 'standard' as const,
+  excludedMetrics: [],
 };
 
 interface IconSettings {
@@ -47,6 +48,8 @@ interface IconSettings {
   thresholdCritical: number;
   historyPeriod: 'week' | 'month' | 'all';
   showCodeReview: boolean;
+  coloringMode: 'standard' | 'rate';
+  excludedMetrics: string[];
 }
 
 export interface UsageDetail {
@@ -1138,30 +1141,84 @@ function updateTray(tray: Tray, results: PollResult[]) {
   const shortString = titleParts.join(' ');
   tray.setTitle(shortString);
 
-  // Update Tray Icon for Linux (and others)
-  const zPercent = getPercent(zResult?.usage || null);
-  const cPercent = getPercent(claudeResult?.usage || null);
-  const codexPercent = getPercent(codexResult?.usage || null);
-  const geminiPercent = getPercent(geminiResult?.usage || null);
-  const externalPercent = getPercent(externalResult?.usage || null);
-  const maxUsage = Math.max(
-    zPercent,
-    cPercent,
-    codexPercent,
-    geminiPercent,
-    externalPercent
-  );
-
+  // Update Tray Icon
   const iconSettings = getSetting<IconSettings>(
     'iconSettings',
     DEFAULT_ICON_SETTINGS
   );
 
-  let iconColor = 'green';
-  if (maxUsage >= iconSettings.thresholdCritical) {
-    iconColor = 'red';
-  } else if (maxUsage >= iconSettings.thresholdWarning) {
-    iconColor = 'yellow';
+  let iconColor: 'red' | 'yellow' | 'green' = 'green';
+
+  for (const result of results) {
+    const nonExcludedDetails = result.details.filter(
+      (d) => !iconSettings.excludedMetrics.includes(d.label)
+    );
+
+    // If the provider has details, and all of them are excluded, skip this provider
+    // from contributing to the icon color calculation.
+    if (result.details.length > 0 && nonExcludedDetails.length === 0) {
+      continue;
+    }
+
+    let providerColor: 'red' | 'yellow' | 'green' = 'green';
+
+    if (iconSettings.coloringMode === 'rate') {
+      let hasRateData = false;
+      for (const detail of nonExcludedDetails) {
+        const totalDuration = detail.totalDurationMinutes || 300;
+
+        if (totalDuration > 0 && detail.timeRemainingMinutes !== undefined) {
+          hasRateData = true;
+          const timeElapsedPct = Math.max(
+            0,
+            Math.min(
+              100,
+              ((totalDuration - detail.timeRemainingMinutes) / totalDuration) *
+                100
+            )
+          );
+          const usagePct = detail.percentage;
+
+          // Only apply rate logic if there's significant usage or time elapsed to avoid "jumpy" icons
+          if (usagePct > 1 || timeElapsedPct > 1) {
+            if (usagePct > 1 || timeElapsedPct > 1) {
+              if (usagePct > timeElapsedPct) {
+                providerColor = 'red';
+                break;
+              } else if (usagePct > timeElapsedPct - 10) {
+                if (providerColor === 'green') {
+                  providerColor = 'yellow';
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (!hasRateData) {
+        const p =
+          nonExcludedDetails.length > 0
+            ? Math.max(...nonExcludedDetails.map((d) => d.percentage))
+            : getPercent(result.usage);
+        if (p >= iconSettings.thresholdCritical) providerColor = 'red';
+        else if (p >= iconSettings.thresholdWarning) providerColor = 'yellow';
+      }
+    } else {
+      const p =
+        nonExcludedDetails.length > 0
+          ? Math.max(...nonExcludedDetails.map((d) => d.percentage))
+          : getPercent(result.usage);
+      if (p >= iconSettings.thresholdCritical) providerColor = 'red';
+      else if (p >= iconSettings.thresholdWarning) providerColor = 'yellow';
+    }
+
+    if (providerColor === 'red') {
+      iconColor = 'red';
+      break;
+    }
+    if (providerColor === 'yellow' && iconColor === 'green') {
+      iconColor = 'yellow';
+    }
   }
 
   updateTrayIcon(tray, iconColor);
@@ -1172,66 +1229,6 @@ function updateTray(tray: Tray, results: PollResult[]) {
   checkHighUsage(codexResult);
   checkHighUsage(geminiResult);
   checkHighUsage(externalResult);
-
-  // Build Context Menu
-  const menuTemplate: Electron.MenuItemConstructorOptions[] = [];
-
-  providerOrder.forEach((provider) => {
-    const meta = providerMeta[provider];
-    if (!meta) return;
-
-    if (provider === 'gemini' || provider === 'external_models') {
-      if (!meta.result) return;
-      menuTemplate.push({
-        label: `${meta.label}: ${meta.result.usage || 'Not connected'}`,
-        enabled: false,
-      });
-      return;
-    }
-
-    if (provider === 'z_ai' || provider === 'claude' || provider === 'codex') {
-      if (hasSession(provider)) {
-        menuTemplate.push({
-          label: `${meta.label}: ${meta.result?.usage || '...'}`,
-          enabled: false,
-        });
-      }
-    }
-  });
-
-  // Separator (only if we have items above)
-  if (menuTemplate.length > 0) {
-    menuTemplate.push({ type: 'separator' });
-  }
-
-  // Standard Items
-  menuTemplate.push(
-    {
-      label: 'Settings',
-      click: () => {
-        const wins = BrowserWindow.getAllWindows();
-        if (wins.length > 0) {
-          const win = wins[0];
-          if (win.isVisible()) {
-            win.hide();
-          } else {
-            win.show();
-            win.focus();
-          }
-        }
-      },
-    },
-    {
-      label: 'Quit',
-      click: () => {
-        app.isQuitting = true;
-        app.quit();
-      },
-    }
-  );
-
-  const contextMenu = Menu.buildFromTemplate(menuTemplate);
-  tray.setContextMenu(contextMenu);
 }
 
 function updateTrayIcon(tray: Tray, color: string) {

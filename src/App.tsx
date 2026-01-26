@@ -45,6 +45,8 @@ function App() {
     thresholdCritical: 80,
     historyPeriod: 'week',
     showCodeReview: true,
+    coloringMode: 'standard',
+    excludedMetrics: [],
   });
   const [providerColors, setProviderColors] = useState<ProviderAccentColors>(
     DEFAULT_PROVIDER_COLORS
@@ -243,6 +245,8 @@ function App() {
             thresholdCritical: settings.thresholdCritical ?? 80,
             historyPeriod: settings.historyPeriod || 'week',
             showCodeReview: settings.showCodeReview ?? true,
+            coloringMode: settings.coloringMode || 'standard',
+            excludedMetrics: settings.excludedMetrics || [],
           });
         }
       } catch (err) {
@@ -405,6 +409,7 @@ function App() {
     setIconSettings(newSettings);
     if (window.electronAPI.setIconSettings) {
       window.electronAPI.setIconSettings(newSettings);
+      window.electronAPI.refreshUsage();
     }
   };
 
@@ -455,6 +460,23 @@ function App() {
     const defaultColor =
       DEFAULT_PROVIDER_COLORS[provider as keyof ProviderAccentColors];
     await handleProviderColorChange(provider, defaultColor);
+  };
+
+  const handleToggleMetricExclusion = (label: string) => {
+    const newExcluded = iconSettings.excludedMetrics.includes(label)
+      ? iconSettings.excludedMetrics.filter((l) => l !== label)
+      : [...iconSettings.excludedMetrics, label];
+
+    const newSettings = {
+      ...iconSettings,
+      excludedMetrics: newExcluded,
+    };
+
+    setIconSettings(newSettings);
+    if (window.electronAPI.setIconSettings) {
+      window.electronAPI.setIconSettings(newSettings);
+      window.electronAPI.refreshUsage();
+    }
   };
 
   const getSortedProviders = (entries: [string, ProviderData][]) => {
@@ -616,7 +638,11 @@ function App() {
             onDrop={(e) => handleDrop(e, key)}
             style={{ cursor: 'grab' }}
           >
-            <ProviderCard data={data} />
+            <ProviderCard
+              data={data}
+              onToggleMetricExclusion={handleToggleMetricExclusion}
+              iconSettings={iconSettings}
+            />
           </div>
         ))}
         <UsageGraph

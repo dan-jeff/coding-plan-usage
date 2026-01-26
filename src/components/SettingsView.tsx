@@ -385,6 +385,66 @@ export const SettingsView = ({
         <div style={styles.sectionTitle}>Icon Appearance</div>
         <div
           style={styles.settingRow}
+          title="Standard: Color based on total usage. Rate: Color based on consumption rate."
+        >
+          <span style={styles.settingLabel}>Coloring Mode ⓘ</span>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+              }}
+            >
+              <input
+                type="radio"
+                name="coloringMode"
+                value="standard"
+                checked={iconSettings.coloringMode === 'standard'}
+                onChange={() =>
+                  onIconSettingsChange({
+                    ...iconSettings,
+                    coloringMode: 'standard',
+                  })
+                }
+                style={styles.checkbox}
+              />
+              Standard (Absolute %)
+            </label>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+              }}
+            >
+              <input
+                type="radio"
+                name="coloringMode"
+                value="rate"
+                checked={iconSettings.coloringMode === 'rate'}
+                onChange={() =>
+                  onIconSettingsChange({
+                    ...iconSettings,
+                    coloringMode: 'rate',
+                  })
+                }
+                style={styles.checkbox}
+              />
+              Consumption Rate
+            </label>
+          </div>
+        </div>
+        <div
+          style={{
+            ...styles.settingRow,
+            opacity: iconSettings.coloringMode === 'rate' ? 0.5 : 1,
+            transition: 'opacity 0.2s ease',
+          }}
           title="Icon turns yellow when usage reaches this %"
         >
           <span style={styles.settingLabel}>Warning Threshold (%) ⓘ</span>
@@ -392,6 +452,7 @@ export const SettingsView = ({
             type="number"
             min="0"
             max="100"
+            disabled={iconSettings.coloringMode === 'rate'}
             value={iconSettings.thresholdWarning}
             onChange={(e) =>
               onIconSettingsChange({
@@ -407,11 +468,17 @@ export const SettingsView = ({
               padding: '4px 8px',
               width: '60px',
               fontSize: '13px',
+              cursor:
+                iconSettings.coloringMode === 'rate' ? 'not-allowed' : 'text',
             }}
           />
         </div>
         <div
-          style={styles.settingRow}
+          style={{
+            ...styles.settingRow,
+            opacity: iconSettings.coloringMode === 'rate' ? 0.5 : 1,
+            transition: 'opacity 0.2s ease',
+          }}
           title="Icon turns red when usage reaches this %"
         >
           <span style={styles.settingLabel}>Critical Threshold (%) ⓘ</span>
@@ -419,6 +486,7 @@ export const SettingsView = ({
             type="number"
             min="0"
             max="100"
+            disabled={iconSettings.coloringMode === 'rate'}
             value={iconSettings.thresholdCritical}
             onChange={(e) =>
               onIconSettingsChange({
@@ -434,6 +502,8 @@ export const SettingsView = ({
               padding: '4px 8px',
               width: '60px',
               fontSize: '13px',
+              cursor:
+                iconSettings.coloringMode === 'rate' ? 'not-allowed' : 'text',
             }}
           />
         </div>

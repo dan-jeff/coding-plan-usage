@@ -19,7 +19,9 @@ export interface IconSettings {
   thresholdCritical: number;
   historyPeriod: 'week' | 'month' | 'all';
   showCodeReview: boolean;
+  coloringMode: 'standard' | 'rate';
   providerColors?: ProviderAccentColors;
+  excludedMetrics: string[];
 }
 
 export interface UsageHistoryEntry {

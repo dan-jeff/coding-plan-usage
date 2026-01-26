@@ -72,10 +72,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openDebugWindow: () => ipcRenderer.send('open-debug-window'),
   openUsageDetails: () => ipcRenderer.send('open-usage-details'),
   getIconSettings: () => ipcRenderer.invoke('get-icon-settings'),
-  setIconSettings: (settings: {
-    thresholdWarning: number;
-    thresholdCritical: number;
-  }) => ipcRenderer.send('set-icon-settings', settings),
+  setIconSettings: (settings: any) =>
+    ipcRenderer.send('set-icon-settings', settings),
   getProviderAccentColors: () =>
     ipcRenderer.invoke('get-provider-accent-colors'),
   setProviderAccentColor: (provider: string, color: string) =>
