@@ -462,10 +462,11 @@ function App() {
     await handleProviderColorChange(provider, defaultColor);
   };
 
-  const handleToggleMetricExclusion = (label: string) => {
-    const newExcluded = iconSettings.excludedMetrics.includes(label)
-      ? iconSettings.excludedMetrics.filter((l) => l !== label)
-      : [...iconSettings.excludedMetrics, label];
+  const handleToggleMetricExclusion = (providerKey: string, label: string) => {
+    const compositeKey = `${providerKey}|${label}`;
+    const newExcluded = iconSettings.excludedMetrics.includes(compositeKey)
+      ? iconSettings.excludedMetrics.filter((l) => l !== compositeKey)
+      : [...iconSettings.excludedMetrics, compositeKey];
 
     const newSettings = {
       ...iconSettings,
@@ -640,6 +641,7 @@ function App() {
           >
             <ProviderCard
               data={data}
+              providerKey={key}
               onToggleMetricExclusion={handleToggleMetricExclusion}
               iconSettings={iconSettings}
             />

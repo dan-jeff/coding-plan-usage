@@ -5,6 +5,7 @@ import {
   Notification,
   BrowserWindow,
   nativeImage,
+  type NativeImage,
 } from 'electron';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -26,6 +27,13 @@ const _dirname =
 
 let pollingIntervalId: NodeJS.Timeout | null = null;
 let currentIntervalMinutes: number = 15;
+let lastIconColor: 'red' | 'yellow' | 'green' | null = null;
+
+const trayIconCache: Record<'red' | 'yellow' | 'green', NativeImage | null> = {
+  red: null,
+  yellow: null,
+  green: null,
+};
 
 const ICON_GREEN =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABiklEQVR4AZRSPUvDQBh+79qkB3ayqOhipSJtJh2sa9F+gOhSSKj+ASchOHURQgc79xcIaj/QUfweHAQREUGEiruKm+Km0jvvTtO0MYg58pB7n/d5nrtcDoPH0HUWGGvMTMZrmYV4Pb2o1bNTqdRp0EMKXQHatq7GG+nibT77iBm+BAQ1AFSlwC6el9aeEvXManQ9RaBjtANiG9l+1no9A4bKvD/A4X76GECJEOU8sZkbtJsyQKysKmyXC5J244/3BFXofvRnJzKA0pcVL/PV3CHc5I9+ZSEG44SoRdHA4sCAIVMU/sCWxc7x9XwuwhCUOUw3+CGaiIcL/iC5Z94Vjjs1Jfb+FsFBAj33hZOKF8LhQEUlSPZGYmoFoe+5raUhRjD9bCF/W3fUwosVpffBofzNhBc3jZ0PfzZHLbzyNzqUr5n8dDtAFn7slgXSIwMsSxaS+E+IZQHWNOkBGSBMnETiYiSq08MArM2LngtdC0khN1OBpqG3WACFRrdmh0SYy2iXTGgNA6ggvgAAAP//fSk0rQAAAAZJREFUAwCyk5VkuKUwyAAAAABJRU5ErkJggg==';
@@ -1150,9 +1158,10 @@ function updateTray(tray: Tray, results: PollResult[]) {
   let iconColor: 'red' | 'yellow' | 'green' = 'green';
 
   for (const result of results) {
-    const nonExcludedDetails = result.details.filter(
-      (d) => !iconSettings.excludedMetrics.includes(d.label)
-    );
+    const nonExcludedDetails = result.details.filter((d) => {
+      const compositeKey = `${result.provider}|${d.label}`;
+      return !iconSettings.excludedMetrics.includes(compositeKey);
+    });
 
     // If the provider has details, and all of them are excluded, skip this provider
     // from contributing to the icon color calculation.
@@ -1231,27 +1240,35 @@ function updateTray(tray: Tray, results: PollResult[]) {
   checkHighUsage(externalResult);
 }
 
-function updateTrayIcon(tray: Tray, color: string) {
+function updateTrayIcon(tray: Tray, color: 'red' | 'yellow' | 'green') {
   try {
-    // Load icon from file for better rendering on Linux
-    const iconFileName = `tray-${color}.png`;
-    const iconPath = path.join(_dirname, 'assets', iconFileName);
-    debug(`Loading tray icon from: ${iconPath}`);
-    const img = nativeImage.createFromPath(iconPath);
+    if (color === lastIconColor) return;
 
-    if (img.isEmpty()) {
-      warn(
-        `Tray icon file not found or empty: ${iconPath}, falling back to base64`
-      );
-      // Fallback to base64
-      let base64String = ICON_GREEN;
-      if (color === 'yellow') base64String = ICON_YELLOW;
-      if (color === 'red') base64String = ICON_RED;
-      const fallbackImg = nativeImage.createFromDataURL(base64String);
-      tray.setImage(fallbackImg);
-    } else {
-      debug(`Successfully loaded tray icon: ${iconPath}`);
-      tray.setImage(img);
+    if (!trayIconCache[color]) {
+      // Load icon from file for better rendering on Linux
+      const iconFileName = `tray-${color}.png`;
+      const iconPath = path.join(_dirname, 'assets', iconFileName);
+      debug(`Loading tray icon from: ${iconPath}`);
+      const img = nativeImage.createFromPath(iconPath);
+
+      if (img.isEmpty()) {
+        warn(
+          `Tray icon file not found or empty: ${iconPath}, falling back to base64`
+        );
+        // Fallback to base64
+        let base64String = ICON_GREEN;
+        if (color === 'yellow') base64String = ICON_YELLOW;
+        if (color === 'red') base64String = ICON_RED;
+        trayIconCache[color] = nativeImage.createFromDataURL(base64String);
+      } else {
+        debug(`Successfully loaded tray icon: ${iconPath}`);
+        trayIconCache[color] = img;
+      }
+    }
+
+    if (trayIconCache[color]) {
+      tray.setImage(trayIconCache[color]);
+      lastIconColor = color;
     }
   } catch (e) {
     error(`Failed to update tray icon: ${e}`);

@@ -10,17 +10,20 @@ const getBarColor = (percentage: number): string => {
 
 export const GenericUsageDisplay = ({
   detail,
+  providerKey,
   onToggleMetricExclusion,
   iconSettings,
 }: {
   detail: UsageDetail;
-  onToggleMetricExclusion?: (label: string) => void;
+  providerKey: string;
+  onToggleMetricExclusion?: (providerKey: string, label: string) => void;
   iconSettings?: IconSettings;
 }) => {
   const [isHovered, setIsHovered] = React.useState(false);
   const isUnavailable = detail.displayReset === 'Unavailable';
+  const compositeKey = `${providerKey}|${detail.label}`;
   const isExcluded =
-    iconSettings?.excludedMetrics.includes(detail.label) || false;
+    iconSettings?.excludedMetrics.includes(compositeKey) || false;
 
   const safeMinutes = detail.timeRemainingMinutes || 0;
   const isTimeLimited = detail.timeRemainingMinutes !== undefined;
@@ -64,7 +67,7 @@ export const GenericUsageDisplay = ({
 
   return (
     <div
-      onClick={() => onToggleMetricExclusion?.(detail.label)}
+      onClick={() => onToggleMetricExclusion?.(providerKey, detail.label)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       style={{

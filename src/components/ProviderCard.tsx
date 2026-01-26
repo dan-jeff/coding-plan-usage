@@ -6,12 +6,14 @@ import { GenericUsageDisplay } from './GenericUsageDisplay';
 
 export const ProviderCard = ({
   data,
+  providerKey,
   onToggleMetricExclusion,
   iconSettings,
 }: {
   data: ProviderData;
+  providerKey: string;
   onStartSession?: () => void;
-  onToggleMetricExclusion?: (label: string) => void;
+  onToggleMetricExclusion?: (providerKey: string, label: string) => void;
   iconSettings?: IconSettings;
 }) => {
   const [isStarted, setIsStarted] = useState(false);
@@ -108,6 +110,7 @@ export const ProviderCard = ({
             <div key={index} style={{ marginBottom: '16px' }}>
               <GenericUsageDisplay
                 detail={detail}
+                providerKey={providerKey}
                 onToggleMetricExclusion={onToggleMetricExclusion}
                 iconSettings={iconSettings}
               />
