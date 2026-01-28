@@ -23,6 +23,7 @@ export interface IconSettings {
   rateMinPercent: number;
   providerColors?: ProviderAccentColors;
   excludedMetrics: string[];
+  glassMode: boolean;
 }
 
 export interface UsageHistoryEntry {

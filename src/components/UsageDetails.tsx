@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import {
   AreaChart,
   Area,
@@ -10,13 +9,14 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { UsageHistoryEntry, ProviderAccentColors } from '../types';
-import { styles, theme } from '../theme';
+import { getStyles, getTheme } from '../theme';
 
 interface UsageDetailsProps {
   data: UsageHistoryEntry[];
   onBack?: () => void;
   activeProviders: string[];
   providerColors: ProviderAccentColors;
+  glassMode: boolean;
 }
 
 interface GraphData {
@@ -67,7 +67,10 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
   onBack,
   activeProviders,
   providerColors,
+  glassMode,
 }) => {
+  const styles = getStyles(glassMode);
+  const theme = getTheme(glassMode);
   const [historyPeriod, setHistoryPeriod] = useState<'week' | 'month' | 'all'>(
     'week'
   );
@@ -267,12 +270,15 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
         <div
           style={{
             backgroundColor: theme.card,
-            border: `1px solid ${theme.border}`,
+            border: `1px solid ${theme.glassBorder}`,
             borderRadius: '8px',
             padding: '12px',
             fontSize: '12px',
             color: theme.textMain,
             minWidth: '150px',
+            boxShadow: theme.glassShadow,
+            backdropFilter: theme.blur,
+            WebkitBackdropFilter: theme.blur,
           }}
         >
           <div
@@ -333,6 +339,10 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
               textAlign: 'center',
               color: theme.textSec,
               fontSize: '14px',
+              backdropFilter: theme.blur,
+              WebkitBackdropFilter: theme.blur,
+              border: `1px solid ${theme.glassBorder}`,
+              boxShadow: theme.glassShadow,
             }}
           >
             No usage history data available yet.
@@ -383,6 +393,7 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
                     gridTemplateColumns: '1fr 1fr',
                     gap: '8px',
                     fontSize: '13px',
+                    textShadow: theme.textShadow,
                   }}
                 >
                   <div>
@@ -415,8 +426,10 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
               }
               style={{
                 backgroundColor: theme.card,
+                backdropFilter: theme.blur,
+                WebkitBackdropFilter: theme.blur,
                 color: theme.textMain,
-                border: `1px solid ${theme.border}`,
+                border: `1px solid ${theme.glassBorder}`,
                 borderRadius: '6px',
                 padding: '4px 8px',
                 outline: 'none',
@@ -459,7 +472,7 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
                 </defs>
                 <CartesianGrid
                   strokeDasharray="3 3"
-                  stroke={theme.border}
+                  stroke={theme.glassBorder}
                   vertical={false}
                 />
                 <XAxis
@@ -499,7 +512,13 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
             return (
               <div key={provider}>
                 <div style={styles.cardHeader}>
-                  <span style={{ fontSize: '14px', fontWeight: 600 }}>
+                  <span
+                    style={{
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      textShadow: theme.textShadow,
+                    }}
+                  >
                     {config.usageTitle} ({getHistoryPeriodLabel()})
                   </span>
                   <select
@@ -511,8 +530,10 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
                     }
                     style={{
                       backgroundColor: theme.card,
+                      backdropFilter: theme.blur,
+                      WebkitBackdropFilter: theme.blur,
                       color: theme.textMain,
-                      border: `1px solid ${theme.border}`,
+                      border: `1px solid ${theme.glassBorder}`,
                       borderRadius: '6px',
                       padding: '4px 8px',
                       outline: 'none',
@@ -556,7 +577,7 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
                       </defs>
                       <CartesianGrid
                         strokeDasharray="3 3"
-                        stroke={theme.border}
+                        stroke={theme.glassBorder}
                         vertical={false}
                       />
                       <XAxis

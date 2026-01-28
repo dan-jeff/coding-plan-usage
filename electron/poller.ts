@@ -50,6 +50,7 @@ const DEFAULT_ICON_SETTINGS = {
   coloringMode: 'standard' as const,
   rateMinPercent: 5,
   excludedMetrics: [],
+  glassMode: true,
 };
 
 interface IconSettings {

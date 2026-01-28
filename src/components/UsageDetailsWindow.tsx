@@ -3,8 +3,9 @@ import {
   UsageHistoryEntry,
   ProviderAccentColors,
   DEFAULT_PROVIDER_COLORS,
+  IconSettings,
 } from '../types';
-import { styles, theme } from '../theme';
+import { getStyles } from '../theme';
 import { UsageDetails } from './UsageDetails';
 
 const DEFAULT_PROVIDER_ORDER = [
@@ -32,6 +33,7 @@ export const UsageDetailsWindow = () => {
   const [providerColors, setProviderColors] = useState<ProviderAccentColors>(
     DEFAULT_PROVIDER_COLORS
   );
+  const [iconSettings, setIconSettings] = useState<IconSettings | null>(null);
 
   useEffect(() => {
     const loadUsageHistory = async () => {
@@ -50,6 +52,14 @@ export const UsageDetailsWindow = () => {
     return () => {
       unsubscribe();
     };
+  }, []);
+
+  useEffect(() => {
+    const loadIconSettings = async () => {
+      const settings = await window.electronAPI.getIconSettings();
+      setIconSettings(settings);
+    };
+    loadIconSettings();
   }, []);
 
   useEffect(() => {
@@ -119,12 +129,16 @@ export const UsageDetailsWindow = () => {
     Array.from(new Set([...activeProviders, ...providersInHistory]))
   );
 
+  const glassMode = iconSettings?.glassMode ?? true;
+  const styles = getStyles(glassMode);
+
   return (
     <div style={styles.container}>
       <UsageDetails
         data={usageHistory}
         activeProviders={displayProviders}
         providerColors={providerColors}
+        glassMode={glassMode}
         onBack={() => {
           window.close();
         }}

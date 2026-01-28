@@ -5,7 +5,7 @@ import {
   IconSettings,
   ProviderAccentColors,
 } from '../types';
-import { styles, theme } from '../theme';
+import { getStyles, getTheme } from '../theme';
 
 interface SettingsViewProps {
   autoLaunch: boolean;
@@ -58,6 +58,9 @@ export const SettingsView = ({
   onProviderColorChange,
   onProviderColorReset,
 }: SettingsViewProps) => {
+  const styles = getStyles(iconSettings.glassMode);
+  const theme = getTheme(iconSettings.glassMode);
+
   return (
     <div>
       <div style={styles.settingsSection}>
@@ -99,9 +102,11 @@ export const SettingsView = ({
               })
             }
             style={{
-              backgroundColor: theme.card,
+              backgroundColor: theme.glassBg,
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
               color: theme.textMain,
-              border: `1px solid ${theme.border}`,
+              border: `1px solid ${theme.glassBorder}`,
               borderRadius: '6px',
               padding: '4px 8px',
               outline: 'none',
@@ -114,6 +119,20 @@ export const SettingsView = ({
             <option value="month">Month</option>
             <option value="all">All Time</option>
           </select>
+        </div>
+        <div style={styles.settingRow}>
+          <span style={styles.settingLabel}>Glassy UI (Translucent)</span>
+          <input
+            type="checkbox"
+            checked={iconSettings.glassMode}
+            onChange={(e) =>
+              onIconSettingsChange({
+                ...iconSettings,
+                glassMode: e.target.checked,
+              })
+            }
+            style={styles.checkbox}
+          />
         </div>
         <div style={{ ...styles.settingRow, borderBottom: 'none' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -286,7 +305,15 @@ export const SettingsView = ({
                   backgroundColor:
                     key === 'gemini' || key === 'external_models'
                       ? 'transparent'
-                      : theme.card,
+                      : theme.glassBg,
+                  backdropFilter:
+                    key === 'gemini' || key === 'external_models'
+                      ? 'none'
+                      : 'blur(10px)',
+                  WebkitBackdropFilter:
+                    key === 'gemini' || key === 'external_models'
+                      ? 'none'
+                      : 'blur(10px)',
                   color:
                     key === 'gemini' || key === 'external_models'
                       ? theme.textSec
@@ -294,7 +321,7 @@ export const SettingsView = ({
                   border:
                     key === 'gemini' || key === 'external_models'
                       ? 'none'
-                      : `1px solid ${theme.border}`,
+                      : `1px solid ${theme.glassBorder}`,
                   borderRadius: '6px',
                   padding:
                     key === 'gemini' || key === 'external_models'
@@ -461,9 +488,11 @@ export const SettingsView = ({
                   })
                 }
                 style={{
-                  backgroundColor: theme.card,
+                  backgroundColor: theme.glassBg,
+                  backdropFilter: 'blur(10px)',
+                  WebkitBackdropFilter: 'blur(10px)',
                   color: theme.textMain,
-                  border: `1px solid ${theme.border}`,
+                  border: `1px solid ${theme.glassBorder}`,
                   borderRadius: '6px',
                   padding: '4px 8px',
                   width: '60px',
@@ -491,9 +520,11 @@ export const SettingsView = ({
                   })
                 }
                 style={{
-                  backgroundColor: theme.card,
+                  backgroundColor: theme.glassBg,
+                  backdropFilter: 'blur(10px)',
+                  WebkitBackdropFilter: 'blur(10px)',
                   color: theme.textMain,
-                  border: `1px solid ${theme.border}`,
+                  border: `1px solid ${theme.glassBorder}`,
                   borderRadius: '6px',
                   padding: '4px 8px',
                   width: '60px',

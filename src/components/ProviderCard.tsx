@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Play, Check } from 'lucide-react';
 import { ProviderData, IconSettings } from '../types';
-import { styles, theme } from '../theme';
+import { getStyles, getTheme } from '../theme';
 import { GenericUsageDisplay } from './GenericUsageDisplay';
 
 export const ProviderCard = ({
@@ -14,8 +14,10 @@ export const ProviderCard = ({
   providerKey: string;
   onStartSession?: () => void;
   onToggleMetricExclusion?: (providerKey: string, label: string) => void;
-  iconSettings?: IconSettings;
+  iconSettings: IconSettings;
 }) => {
+  const styles = getStyles(iconSettings.glassMode);
+  const theme = getTheme(iconSettings.glassMode);
   const [isStarted, setIsStarted] = useState(false);
   const hasCommand = data.command && data.command.trim() !== '';
   const isAntigravity = data.label === 'Antigravity';

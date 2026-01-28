@@ -1,8 +1,8 @@
 import React from 'react';
 import { UsageDetail, IconSettings } from '../types';
-import { styles, theme } from '../theme';
+import { getStyles, getTheme } from '../theme';
 
-const getBarColor = (percentage: number): string => {
+const getBarColor = (percentage: number, theme: any): string => {
   if (percentage >= 80) return theme.accentRed;
   if (percentage >= 50) return theme.accentYellow;
   return theme.accentGreen;
@@ -17,8 +17,10 @@ export const GenericUsageDisplay = ({
   detail: UsageDetail;
   providerKey: string;
   onToggleMetricExclusion?: (providerKey: string, label: string) => void;
-  iconSettings?: IconSettings;
+  iconSettings: IconSettings;
 }) => {
+  const styles = getStyles(iconSettings.glassMode);
+  const theme = getTheme(iconSettings.glassMode);
   const [isHovered, setIsHovered] = React.useState(false);
   const isUnavailable = detail.displayReset === 'Unavailable';
   const compositeKey = `${providerKey}|${detail.label}`;
@@ -34,7 +36,7 @@ export const GenericUsageDisplay = ({
     Math.min(100, ((totalDuration - safeMinutes) / totalDuration) * 100)
   );
 
-  let usageColor = getBarColor(detail.percentage);
+  let usageColor = getBarColor(detail.percentage, theme);
   let timeColor = theme.accentGreen;
 
   const rateMinPercent = iconSettings?.rateMinPercent ?? 5;
@@ -83,10 +85,10 @@ export const GenericUsageDisplay = ({
         padding: '8px',
         borderRadius: '8px',
         transition: 'all 0.2s ease',
-        backgroundColor: isHovered ? theme.hover : 'transparent',
+        backgroundColor: isHovered ? theme.glassBg : 'transparent',
         opacity: isExcluded ? 0.5 : 1,
         filter: isExcluded ? 'grayscale(100%)' : 'none',
-        border: `1px solid ${isHovered ? theme.border : 'transparent'}`,
+        border: `1px solid ${isHovered ? theme.glassBorder : 'transparent'}`,
       }}
     >
       {/* Row 1: Usage */}

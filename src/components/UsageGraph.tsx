@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { UsageHistoryEntry, ProviderAccentColors } from '../types';
-import { theme } from '../theme';
+import { getTheme } from '../theme';
 
 interface UsageGraphProps {
   data: UsageHistoryEntry[];
@@ -17,6 +17,7 @@ interface UsageGraphProps {
   historyPeriod: 'week' | 'month' | 'all';
   activeProviders: string[];
   providerColors?: ProviderAccentColors;
+  glassMode: boolean;
 }
 
 interface GraphData {
@@ -52,7 +53,10 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
   historyPeriod,
   activeProviders,
   providerColors,
+  glassMode,
 }) => {
+  const theme = getTheme(glassMode);
+
   const processGraphData = (): GraphData[] => {
     const now = new Date();
     let cutoffDate: Date;
@@ -157,11 +161,14 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
         <div
           style={{
             backgroundColor: theme.card,
-            border: `1px solid ${theme.border}`,
+            border: `1px solid ${theme.glassBorder}`,
             borderRadius: '8px',
             padding: '12px',
             fontSize: '12px',
             color: theme.textMain,
+            boxShadow: theme.glassShadow,
+            backdropFilter: theme.blur,
+            WebkitBackdropFilter: theme.blur,
           }}
         >
           <div style={{ fontWeight: 600, marginBottom: '6px' }}>
@@ -202,11 +209,15 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
       <div
         style={{
           backgroundColor: theme.card,
+          backdropFilter: theme.blur,
+          WebkitBackdropFilter: theme.blur,
+          border: `1px solid ${theme.glassBorder}`,
           borderRadius: '12px',
           padding: '20px',
           textAlign: 'center',
           color: theme.textSec,
           fontSize: '13px',
+          boxShadow: theme.glassShadow,
         }}
       >
         No data yet
@@ -219,10 +230,14 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
       onClick={onClick}
       style={{
         backgroundColor: theme.card,
+        backdropFilter: theme.blur,
+        WebkitBackdropFilter: theme.blur,
+        border: `1px solid ${theme.glassBorder}`,
         borderRadius: '12px',
         padding: '16px 0',
         cursor: 'pointer',
         transition: 'all 0.2s ease',
+        boxShadow: theme.glassShadow,
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = 'translateY(-2px)';
@@ -230,7 +245,7 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = 'none';
+        e.currentTarget.style.boxShadow = theme.glassShadow;
       }}
     >
       <div
@@ -240,6 +255,7 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
           marginBottom: '12px',
           color: theme.textMain,
           padding: '0 16px',
+          textShadow: theme.textShadow,
         }}
       >
         {getHistoryPeriodLabel()}
@@ -320,7 +336,7 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
             </defs>
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke={theme.border}
+              stroke={theme.glassBorder}
               vertical={false}
             />
             <XAxis

@@ -13,7 +13,7 @@ import {
   ProviderAccentColors,
   DEFAULT_PROVIDER_COLORS,
 } from './types';
-import { styles, theme } from './theme';
+import { getStyles, getTheme } from './theme';
 import { ProviderCard } from './components/ProviderCard';
 import { SettingsView } from './components/SettingsView';
 import { DebugLogView } from './components/DebugLogView';
@@ -48,6 +48,7 @@ function App() {
     coloringMode: 'standard',
     rateMinPercent: 5,
     excludedMetrics: [],
+    glassMode: true,
   });
   const [providerColors, setProviderColors] = useState<ProviderAccentColors>(
     DEFAULT_PROVIDER_COLORS
@@ -88,6 +89,15 @@ function App() {
 
   const isDebugView = window.location.hash === '#debug-logs';
   const isUsageDetailsView = window.location.hash === '#usage-details';
+
+  const styles = getStyles(iconSettings.glassMode);
+  const theme = getTheme(iconSettings.glassMode);
+
+  useEffect(() => {
+    document.body.style.backgroundColor = iconSettings.glassMode
+      ? 'transparent'
+      : theme.bg;
+  }, [iconSettings.glassMode, theme.bg]);
 
   if (isDebugView) {
     return <DebugLogView />;
@@ -249,6 +259,7 @@ function App() {
             coloringMode: settings.coloringMode || 'standard',
             rateMinPercent: settings.rateMinPercent ?? 5,
             excludedMetrics: settings.excludedMetrics || [],
+            glassMode: settings.glassMode ?? true,
           });
         }
       } catch (err) {
@@ -655,6 +666,7 @@ function App() {
           historyPeriod={iconSettings.historyPeriod}
           activeProviders={graphProviders}
           providerColors={providerColors}
+          glassMode={iconSettings.glassMode}
         />
       </>
     );
@@ -766,8 +778,8 @@ function App() {
             to { transform: rotate(360deg); }
         }
         select option {
-            background-color: #2a2a3c;
-            color: #ffffff;
+            background-color: ${theme.card};
+            color: ${theme.textMain};
         }
       `}</style>
     </div>
