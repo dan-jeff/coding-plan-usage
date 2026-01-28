@@ -439,74 +439,98 @@ export const SettingsView = ({
             </label>
           </div>
         </div>
-        <div
-          style={{
-            ...styles.settingRow,
-            opacity: iconSettings.coloringMode === 'rate' ? 0.5 : 1,
-            transition: 'opacity 0.2s ease',
-          }}
-          title="Icon turns yellow when usage reaches this %"
-        >
-          <span style={styles.settingLabel}>Warning Threshold (%) ⓘ</span>
-          <input
-            type="number"
-            min="0"
-            max="100"
-            disabled={iconSettings.coloringMode === 'rate'}
-            value={iconSettings.thresholdWarning}
-            onChange={(e) =>
-              onIconSettingsChange({
-                ...iconSettings,
-                thresholdWarning: parseInt(e.target.value) || 0,
-              })
-            }
-            style={{
-              backgroundColor: theme.card,
-              color: theme.textMain,
-              border: `1px solid ${theme.border}`,
-              borderRadius: '6px',
-              padding: '4px 8px',
-              width: '60px',
-              fontSize: '13px',
-              cursor:
-                iconSettings.coloringMode === 'rate' ? 'not-allowed' : 'text',
-            }}
-          />
-        </div>
-        <div
-          style={{
-            ...styles.settingRow,
-            opacity: iconSettings.coloringMode === 'rate' ? 0.5 : 1,
-            transition: 'opacity 0.2s ease',
-          }}
-          title="Icon turns red when usage reaches this %"
-        >
-          <span style={styles.settingLabel}>Critical Threshold (%) ⓘ</span>
-          <input
-            type="number"
-            min="0"
-            max="100"
-            disabled={iconSettings.coloringMode === 'rate'}
-            value={iconSettings.thresholdCritical}
-            onChange={(e) =>
-              onIconSettingsChange({
-                ...iconSettings,
-                thresholdCritical: parseInt(e.target.value) || 0,
-              })
-            }
-            style={{
-              backgroundColor: theme.card,
-              color: theme.textMain,
-              border: `1px solid ${theme.border}`,
-              borderRadius: '6px',
-              padding: '4px 8px',
-              width: '60px',
-              fontSize: '13px',
-              cursor:
-                iconSettings.coloringMode === 'rate' ? 'not-allowed' : 'text',
-            }}
-          />
-        </div>
+        {iconSettings.coloringMode === 'standard' ? (
+          <>
+            <div
+              style={{
+                ...styles.settingRow,
+                transition: 'opacity 0.2s ease',
+              }}
+              title="Icon turns yellow when usage reaches this %"
+            >
+              <span style={styles.settingLabel}>Warning Threshold (%) ⓘ</span>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={iconSettings.thresholdWarning}
+                onChange={(e) =>
+                  onIconSettingsChange({
+                    ...iconSettings,
+                    thresholdWarning: parseInt(e.target.value) || 0,
+                  })
+                }
+                style={{
+                  backgroundColor: theme.card,
+                  color: theme.textMain,
+                  border: `1px solid ${theme.border}`,
+                  borderRadius: '6px',
+                  padding: '4px 8px',
+                  width: '60px',
+                  fontSize: '13px',
+                }}
+              />
+            </div>
+            <div
+              style={{
+                ...styles.settingRow,
+                transition: 'opacity 0.2s ease',
+              }}
+              title="Icon turns red when usage reaches this %"
+            >
+              <span style={styles.settingLabel}>Critical Threshold (%) ⓘ</span>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={iconSettings.thresholdCritical}
+                onChange={(e) =>
+                  onIconSettingsChange({
+                    ...iconSettings,
+                    thresholdCritical: parseInt(e.target.value) || 0,
+                  })
+                }
+                style={{
+                  backgroundColor: theme.card,
+                  color: theme.textMain,
+                  border: `1px solid ${theme.border}`,
+                  borderRadius: '6px',
+                  padding: '4px 8px',
+                  width: '60px',
+                  fontSize: '13px',
+                }}
+              />
+            </div>
+          </>
+        ) : (
+          <div
+            style={styles.settingRow}
+            title="Noise floor: Only apply rate-based coloring when both usage and time elapsed reach this %"
+          >
+            <span style={styles.settingLabel}>Rate Minimum (%) ⓘ</span>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={iconSettings.rateMinPercent ?? 5}
+              onChange={(e) =>
+                onIconSettingsChange({
+                  ...iconSettings,
+                  rateMinPercent: parseInt(e.target.value) || 0,
+                })
+              }
+              style={{
+                backgroundColor: theme.card,
+                color: theme.textMain,
+                border: `1px solid ${theme.border}`,
+                borderRadius: '6px',
+                padding: '4px 8px',
+                width: '60px',
+                fontSize: '13px',
+              }}
+            />
+          </div>
+        )}
       </div>
 
       <div style={styles.settingsSection}>

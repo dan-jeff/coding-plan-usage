@@ -59,6 +59,7 @@ const DEFAULT_ICON_SETTINGS = {
   historyPeriod: 'week' as const,
   showCodeReview: true,
   coloringMode: 'standard' as const,
+  rateMinPercent: 5,
   excludedMetrics: [],
   providerColors: {
     z_ai: '#10b981',

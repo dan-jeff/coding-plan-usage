@@ -37,9 +37,14 @@ export const GenericUsageDisplay = ({
   let usageColor = getBarColor(detail.percentage);
   let timeColor = theme.accentGreen;
 
+  const rateMinPercent = iconSettings?.rateMinPercent ?? 5;
+
   if (iconSettings?.coloringMode === 'rate' && isTimeLimited) {
-    // Noise floor: only color if usage or time has actually started to move
-    if (detail.percentage > 1 || timeElapsedPct > 1) {
+    // Noise floor: only color if usage AND time have reached the minimum threshold
+    if (
+      detail.percentage >= rateMinPercent &&
+      timeElapsedPct >= rateMinPercent
+    ) {
       if (detail.percentage > timeElapsedPct) {
         usageColor = theme.accentRed;
         timeColor = theme.accentRed;

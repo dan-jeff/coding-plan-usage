@@ -20,6 +20,7 @@ export interface IconSettings {
   historyPeriod: 'week' | 'month' | 'all';
   showCodeReview: boolean;
   coloringMode: 'standard' | 'rate';
+  rateMinPercent: number;
   providerColors?: ProviderAccentColors;
   excludedMetrics: string[];
 }

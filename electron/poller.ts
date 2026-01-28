@@ -48,6 +48,7 @@ const DEFAULT_ICON_SETTINGS = {
   historyPeriod: 'week' as const,
   showCodeReview: true,
   coloringMode: 'standard' as const,
+  rateMinPercent: 5,
   excludedMetrics: [],
 };
 
@@ -57,6 +58,7 @@ interface IconSettings {
   historyPeriod: 'week' | 'month' | 'all';
   showCodeReview: boolean;
   coloringMode: 'standard' | 'rate';
+  rateMinPercent: number;
   excludedMetrics: string[];
 }
 
@@ -1188,16 +1190,16 @@ function updateTray(tray: Tray, results: PollResult[]) {
           );
           const usagePct = detail.percentage;
 
-          // Only apply rate logic if there's significant usage or time elapsed to avoid "jumpy" icons
-          if (usagePct > 1 || timeElapsedPct > 1) {
-            if (usagePct > 1 || timeElapsedPct > 1) {
-              if (usagePct > timeElapsedPct) {
-                providerColor = 'red';
-                break;
-              } else if (usagePct > timeElapsedPct - 10) {
-                if (providerColor === 'green') {
-                  providerColor = 'yellow';
-                }
+          if (
+            usagePct >= iconSettings.rateMinPercent &&
+            timeElapsedPct >= iconSettings.rateMinPercent
+          ) {
+            if (usagePct > timeElapsedPct) {
+              providerColor = 'red';
+              break;
+            } else if (usagePct > timeElapsedPct - 10) {
+              if (providerColor === 'green') {
+                providerColor = 'yellow';
               }
             }
           }

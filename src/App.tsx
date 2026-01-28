@@ -46,6 +46,7 @@ function App() {
     historyPeriod: 'week',
     showCodeReview: true,
     coloringMode: 'standard',
+    rateMinPercent: 5,
     excludedMetrics: [],
   });
   const [providerColors, setProviderColors] = useState<ProviderAccentColors>(
@@ -246,6 +247,7 @@ function App() {
             historyPeriod: settings.historyPeriod || 'week',
             showCodeReview: settings.showCodeReview ?? true,
             coloringMode: settings.coloringMode || 'standard',
+            rateMinPercent: settings.rateMinPercent ?? 5,
             excludedMetrics: settings.excludedMetrics || [],
           });
         }
