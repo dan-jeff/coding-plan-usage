@@ -451,9 +451,27 @@ function parseUsage(body: string): {
       return { usage: null, details: [] };
     }
 
-    const aggregatedDetails: Record<string, UsageDetail> = {};
+    const aggregatedDetails: Record<
+      string,
+      { detail: UsageDetail; preference: number }
+    > = {};
     let maxUsage = 0;
     let primaryResetTime: string | undefined;
+
+    const getMatchPreference = (match: UsageMatch): number => {
+      const context = [
+        match.keySource,
+        ...(match.keyContext || []),
+        match.label,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      if (/all[_\s-]?models?/.test(context)) return 3;
+      if (/sonnet/.test(context)) return 1;
+      return 2;
+    };
 
     for (const match of matches) {
       let p = match.value;
@@ -525,37 +543,50 @@ function parseUsage(body: string): {
       let isBetter = true;
 
       if (currentEntry) {
-        const currentHasReset =
-          currentEntry.displayReset !== 'Unavailable' && currentEntry.resetTime;
-        const newHasReset =
-          newEntry.displayReset !== 'Unavailable' && newEntry.resetTime;
+        const newPreference = getMatchPreference(match);
+        const currentPreference = currentEntry.preference;
 
-        if (newHasReset && !currentHasReset) {
+        if (newPreference > currentPreference) {
           isBetter = true;
-        } else if (!newHasReset && currentHasReset) {
+        } else if (newPreference < currentPreference) {
           isBetter = false;
-        } else if (newHasReset === currentHasReset) {
-          if (newEntry.percentage > currentEntry.percentage) {
+        } else {
+          const currentHasReset =
+            currentEntry.detail.displayReset !== 'Unavailable' &&
+            currentEntry.detail.resetTime;
+          const newHasReset =
+            newEntry.displayReset !== 'Unavailable' && newEntry.resetTime;
+
+          if (newHasReset && !currentHasReset) {
             isBetter = true;
-          } else if (newEntry.percentage < currentEntry.percentage) {
+          } else if (!newHasReset && currentHasReset) {
             isBetter = false;
-          } else if (
-            newEntry.limit &&
-            currentEntry.limit &&
-            newEntry.used !== '' &&
-            currentEntry.used !== ''
-          ) {
-            isBetter = false;
+          } else if (newHasReset === currentHasReset) {
+            if (newEntry.percentage > currentEntry.detail.percentage) {
+              isBetter = true;
+            } else if (newEntry.percentage < currentEntry.detail.percentage) {
+              isBetter = false;
+            } else if (
+              newEntry.limit &&
+              currentEntry.detail.limit &&
+              newEntry.used !== '' &&
+              currentEntry.detail.used !== ''
+            ) {
+              isBetter = false;
+            }
           }
         }
       }
 
       if (isBetter) {
-        aggregatedDetails[label] = newEntry;
+        aggregatedDetails[label] = {
+          detail: newEntry,
+          preference: getMatchPreference(match),
+        };
       }
     }
 
-    let details = Object.values(aggregatedDetails);
+    let details = Object.values(aggregatedDetails).map((entry) => entry.detail);
 
     details.sort((a, b) => {
       const getPriority = (d: UsageDetail): number => {

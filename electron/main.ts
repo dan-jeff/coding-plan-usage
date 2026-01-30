@@ -79,6 +79,7 @@ let debugWindow: BrowserWindow | null = null;
 let usageDetailsWindow: BrowserWindow | null = null;
 
 function createWindow() {
+  const isWindows = process.platform === 'win32';
   const preloadPath =
     process.env.NODE_ENV === 'development'
       ? path.join(_dirname, '../dist-electron/preload.cjs')
@@ -104,6 +105,8 @@ function createWindow() {
     vibrancy: 'under-window',
     visualEffectState: 'active',
     backgroundMaterial: 'acrylic',
+    backgroundColor: isWindows ? '#00000000' : undefined,
+    paintWhenInitiallyHidden: !isWindows,
     icon: path.join(_dirname, 'assets/icon.png'),
     webPreferences: {
       preload: preloadPath,
@@ -194,8 +197,17 @@ function createTray() {
       const y = workArea.y + workArea.height - height;
 
       mainWindow?.setPosition(x, y);
-      mainWindow?.show();
-      mainWindow?.focus();
+      if (process.platform === 'win32') {
+        mainWindow?.setOpacity(0);
+        mainWindow?.show();
+        mainWindow?.focus();
+        setTimeout(() => {
+          mainWindow?.setOpacity(1);
+        }, 30);
+      } else {
+        mainWindow?.show();
+        mainWindow?.focus();
+      }
     }
   });
 }
