@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import { Play, Check } from 'lucide-react';
-import { ProviderData, IconSettings } from '../types';
+import { ProviderData, IconSettings, ProviderAccentColors } from '../types';
 import { getStyles, getTheme } from '../theme';
 import { GenericUsageDisplay } from './GenericUsageDisplay';
 
 export const ProviderCard = ({
   data,
   providerKey,
+  providerColors,
   onToggleMetricExclusion,
   iconSettings,
 }: {
   data: ProviderData;
   providerKey: string;
+  providerColors: ProviderAccentColors;
   onStartSession?: () => void;
   onToggleMetricExclusion?: (providerKey: string, label: string) => void;
   iconSettings: IconSettings;
@@ -23,9 +25,17 @@ export const ProviderCard = ({
   const isAntigravity = data.label === 'Antigravity';
   const primaryUsagePercent = data.details?.[0]?.percentage ?? 0;
   const isActive = data.connected && primaryUsagePercent > 0;
+  const providerBorderColor =
+    providerColors[providerKey as keyof ProviderAccentColors] ||
+    theme.glassBorder;
 
   return (
-    <div style={styles.card}>
+    <div
+      style={{
+        ...styles.card,
+        border: `1px solid ${providerBorderColor}`,
+      }}
+    >
       <div style={styles.cardHeader}>
         <span style={styles.providerName}>{data.label}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

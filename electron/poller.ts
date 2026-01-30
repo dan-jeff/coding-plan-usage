@@ -469,7 +469,7 @@ function parseUsage(body: string): {
       let label = match.label;
       let totalDurationMinutes: number | undefined;
 
-      if (match.resetTime) {
+      if (match.resetTime && !label) {
         const resetDate = new Date(match.resetTime);
         if (!isNaN(resetDate.getTime())) {
           const diff = resetDate.getTime() - Date.now();
@@ -487,7 +487,7 @@ function parseUsage(body: string): {
           else if (diff > 691200000 && diff <= 2764800000) {
             label = 'Monthly Limit';
             totalDurationMinutes = 43200; // 30 days
-          } else if (!label) {
+          } else {
             label = 'Token Usage';
           }
         }

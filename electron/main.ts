@@ -1095,6 +1095,11 @@ ipcMain.on('open-debug-window', () => {
     return;
   }
 
+  const iconSettings = getSetting('iconSettings', DEFAULT_ICON_SETTINGS);
+  const glassMode = iconSettings?.glassMode ?? true;
+  const isWindows = process.platform === 'win32';
+  const useGlass = glassMode && !isWindows;
+
   const preloadPath =
     process.env.NODE_ENV === 'development'
       ? path.join(_dirname, '../dist-electron/preload.cjs')
@@ -1105,10 +1110,10 @@ ipcMain.on('open-debug-window', () => {
     height: 600,
     center: true,
     autoHideMenuBar: true,
-    transparent: true,
-    vibrancy: 'under-window',
-    visualEffectState: 'active',
-    backgroundMaterial: 'acrylic',
+    transparent: useGlass,
+    vibrancy: useGlass ? 'under-window' : undefined,
+    visualEffectState: useGlass ? 'active' : undefined,
+    backgroundMaterial: useGlass ? 'acrylic' : undefined,
     icon: path.join(_dirname, 'assets/icon.png'),
     webPreferences: {
       preload: preloadPath,
@@ -1135,6 +1140,11 @@ ipcMain.on('open-usage-details', () => {
     return;
   }
 
+  const iconSettings = getSetting('iconSettings', DEFAULT_ICON_SETTINGS);
+  const glassMode = iconSettings?.glassMode ?? true;
+  const isWindows = process.platform === 'win32';
+  const useGlass = glassMode && !isWindows;
+
   const preloadPath =
     process.env.NODE_ENV === 'development'
       ? path.join(_dirname, '../dist-electron/preload.cjs')
@@ -1146,10 +1156,10 @@ ipcMain.on('open-usage-details', () => {
     show: true,
     center: true,
     autoHideMenuBar: true,
-    transparent: true,
-    vibrancy: 'under-window',
-    visualEffectState: 'active',
-    backgroundMaterial: 'acrylic',
+    transparent: useGlass,
+    vibrancy: useGlass ? 'under-window' : undefined,
+    visualEffectState: useGlass ? 'active' : undefined,
+    backgroundMaterial: useGlass ? 'acrylic' : undefined,
     icon: path.join(_dirname, 'assets/icon.png'),
     webPreferences: {
       preload: preloadPath,

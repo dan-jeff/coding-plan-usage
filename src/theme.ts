@@ -1,21 +1,28 @@
 import React from 'react';
 
-export const getTheme = (glassMode: boolean) => ({
-  bg: glassMode ? 'rgba(15, 15, 20, 0.7)' : '#1e1e2e',
-  card: glassMode ? 'rgba(30, 30, 45, 0.9)' : '#2a2a3c',
-  textMain: '#ffffff',
-  textSec: '#a1a1aa',
-  accentGreen: '#10b981',
-  accentYellow: '#f59e0b',
-  accentRed: '#ef4444',
-  border: glassMode ? 'rgba(255, 255, 255, 0.1)' : '#3f3f46',
-  hover: 'rgba(255, 255, 255, 0.05)',
-  glassBg: 'rgba(255, 255, 255, 0.05)',
-  glassBorder: glassMode ? 'rgba(255, 255, 255, 0.2)' : '#3f3f46',
-  glassShadow: glassMode ? '0 8px 32px 0 rgba(0, 0, 0, 0.37)' : 'none',
-  blur: glassMode ? 'blur(100px)' : 'none',
-  textShadow: glassMode ? '0 1px 3px rgba(0, 0, 0, 0.8)' : 'none',
-});
+export const getTheme = (glassMode: boolean) => {
+  const isWindows =
+    typeof navigator !== 'undefined' && /windows/i.test(navigator.userAgent);
+  const glassBgAlpha = isWindows ? 0.5 : 0.7;
+  const glassCardAlpha = isWindows ? 0.75 : 0.9;
+
+  return {
+    bg: glassMode ? `rgba(15, 15, 20, ${glassBgAlpha})` : '#1e1e2e',
+    card: glassMode ? `rgba(30, 30, 45, ${glassCardAlpha})` : '#2a2a3c',
+    textMain: '#ffffff',
+    textSec: '#a1a1aa',
+    accentGreen: '#10b981',
+    accentYellow: '#f59e0b',
+    accentRed: '#ef4444',
+    border: glassMode ? 'rgba(255, 255, 255, 0.1)' : '#3f3f46',
+    hover: 'rgba(255, 255, 255, 0.05)',
+    glassBg: 'rgba(255, 255, 255, 0.05)',
+    glassBorder: glassMode ? 'rgba(255, 255, 255, 0.2)' : '#3f3f46',
+    glassShadow: glassMode ? '0 8px 32px 0 rgba(0, 0, 0, 0.37)' : 'none',
+    blur: glassMode ? 'blur(100px)' : 'none',
+    textShadow: glassMode ? '0 1px 3px rgba(0, 0, 0, 0.8)' : 'none',
+  };
+};
 
 // For backward compatibility or default usage
 export const theme = getTheme(true);

@@ -655,6 +655,7 @@ function App() {
             <ProviderCard
               data={data}
               providerKey={key}
+              providerColors={providerColors}
               onToggleMetricExclusion={handleToggleMetricExclusion}
               iconSettings={iconSettings}
             />
