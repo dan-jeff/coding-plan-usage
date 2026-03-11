@@ -3,6 +3,10 @@ import { Play, Check } from 'lucide-react';
 import { ProviderData, IconSettings, ProviderAccentColors } from '../types';
 import { getStyles, getTheme } from '../theme';
 import { GenericUsageDisplay } from './GenericUsageDisplay';
+import {
+  PeriodCustomizationPopup,
+  PopupOverlay,
+} from './PeriodCustomizationPopup';
 
 export const ProviderCard = ({
   data,
@@ -10,6 +14,8 @@ export const ProviderCard = ({
   providerColors,
   onToggleMetricExclusion,
   iconSettings,
+  getCustomDuration,
+  onPeriodCustomizationChange,
 }: {
   data: ProviderData;
   providerKey: string;
@@ -17,17 +23,58 @@ export const ProviderCard = ({
   onStartSession?: () => void;
   onToggleMetricExclusion?: (providerKey: string, label: string) => void;
   iconSettings: IconSettings;
+  getCustomDuration: (
+    provider: string,
+    metricLabel: string
+  ) => number | undefined;
+  onPeriodCustomizationChange: (
+    provider: string,
+    metricLabel: string,
+    durationMinutes: number | null
+  ) => void;
 }) => {
   const styles = getStyles(iconSettings.glassMode);
   const theme = getTheme(iconSettings.glassMode);
   const [isStarted, setIsStarted] = useState(false);
+  const [editingMetric, setEditingMetric] = useState<{
+    provider: string;
+    metricLabel: string;
+    apiDefault: number | undefined;
+  } | null>(null);
   const hasCommand = data.command && data.command.trim() !== '';
   const isAntigravity = data.label === 'Antigravity';
   const primaryUsagePercent = data.details?.[0]?.percentage ?? 0;
-  const isActive = data.connected && primaryUsagePercent > 0;
+  const hasDetailData = (data.details?.length ?? 0) > 0;
+  const isActive = data.connected && (hasDetailData || primaryUsagePercent > 0);
   const providerBorderColor =
     providerColors[providerKey as keyof ProviderAccentColors] ||
     theme.glassBorder;
+
+  const handleEditPeriod = (
+    metricLabel: string,
+    apiDefault: number | undefined
+  ) => {
+    setEditingMetric({
+      provider: providerKey,
+      metricLabel,
+      apiDefault,
+    });
+  };
+
+  const handleSavePeriod = (durationMinutes: number | null) => {
+    if (editingMetric) {
+      onPeriodCustomizationChange(
+        editingMetric.provider,
+        editingMetric.metricLabel,
+        durationMinutes
+      );
+    }
+    setEditingMetric(null);
+  };
+
+  const handleClosePopup = () => {
+    setEditingMetric(null);
+  };
 
   return (
     <div
@@ -125,6 +172,8 @@ export const ProviderCard = ({
                 providerKey={providerKey}
                 onToggleMetricExclusion={onToggleMetricExclusion}
                 iconSettings={iconSettings}
+                getCustomDuration={getCustomDuration}
+                onEditPeriod={handleEditPeriod}
               />
             </div>
           ))}
@@ -147,6 +196,27 @@ export const ProviderCard = ({
         >
           Provider not connected.
         </div>
+      )}
+
+      {editingMetric && (
+        <>
+          <PopupOverlay onClick={handleClosePopup} />
+          <PeriodCustomizationPopup
+            provider={editingMetric.provider}
+            metricLabel={editingMetric.metricLabel}
+            apiDefaultMinutes={editingMetric.apiDefault}
+            currentCustomMinutes={
+              editingMetric.apiDefault
+                ? getCustomDuration(
+                    editingMetric.provider,
+                    editingMetric.metricLabel
+                  )
+                : undefined
+            }
+            onClose={handleClosePopup}
+            onSave={handleSavePeriod}
+          />
+        </>
       )}
     </div>
   );

@@ -1,5 +1,5 @@
 const now = new Date('2026-01-23T12:00:00Z'); // Simulate today based on env info
-const historyPeriod = 'week';
+const historyPeriod: 'week' | 'month' | 'all' = 'week';
 
 interface Entry {
   provider: string;
@@ -50,7 +50,16 @@ const processGraphData = () => {
   console.log('Now:', now.toISOString());
   console.log('Cutoff:', cutoffDate.toISOString());
 
-  const grouped: any = {};
+  const grouped: Record<
+    string,
+    {
+      z_ai: number[];
+      claude: number[];
+      codex: number[];
+      gemini: number[];
+      external_models: number[];
+    }
+  > = {};
 
   data.forEach((entry) => {
     const entryDate = new Date(entry.timestamp);
@@ -77,7 +86,7 @@ const processGraphData = () => {
   });
 
   const result = Object.entries(grouped)
-    .map(([date, values]: [string, any]) => ({
+    .map(([date, values]) => ({
       date,
       z_ai: values.z_ai.length > 0 ? Math.max(...values.z_ai) : 0,
     }))

@@ -18,9 +18,9 @@ import { ProviderCard } from './components/ProviderCard';
 import { SettingsView } from './components/SettingsView';
 import { DebugLogView } from './components/DebugLogView';
 import { UsageGraph } from './components/UsageGraph';
-import { UsageDetails } from './components/UsageDetails';
+
 import { UsageDetailsWindow } from './components/UsageDetailsWindow';
-import type { IconSettings } from './types';
+import type { IconSettings, ProviderPeriodCustomization } from './types';
 
 const DEFAULT_PROVIDER_ORDER = [
   'codex',
@@ -82,6 +82,9 @@ function App() {
   const [updateProgress, setUpdateProgress] = useState(0);
   const [showSetupHint, setShowSetupHint] = useState(true);
   const [usageHistory, setUsageHistory] = useState<UsageHistoryEntry[]>([]);
+  const [periodCustomizations, setPeriodCustomizations] = useState<
+    ProviderPeriodCustomization[]
+  >([]);
 
   const appRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -107,6 +110,7 @@ function App() {
     return <UsageDetailsWindow />;
   }
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useLayoutEffect(() => {
     if (!appRef.current || !scrollAreaRef.current || !contentRef.current)
       return;
@@ -139,6 +143,7 @@ function App() {
     return () => observer.disconnect();
   }, [view, providers, updateStatus, showSetupHint]);
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     // Initial Status Check
     const checkStatus = async () => {
@@ -292,6 +297,19 @@ function App() {
     };
     loadUsageHistory();
 
+    const loadPeriodCustomizations = async () => {
+      try {
+        if (window.electronAPI.getPeriodCustomizations) {
+          const customizations =
+            await window.electronAPI.getPeriodCustomizations();
+          setPeriodCustomizations(customizations);
+        }
+      } catch (err) {
+        console.error('Failed to load period customizations', err);
+      }
+    };
+    loadPeriodCustomizations();
+
     // Listeners
     const removeConnectListener = window.electronAPI.onProviderConnected(
       (_event, provider) => {
@@ -323,8 +341,11 @@ function App() {
         setProviders((prev) => {
           if (!prev[provider]) return prev;
 
-          // If we receive usage data, the provider is connected
-          const isConnected = usage !== null && usage !== 'Error';
+          // If we receive details, provider is connected even when usage percent
+          // is unavailable.
+          const isConnected =
+            (usage !== null && usage !== 'Error') ||
+            (Array.isArray(details) && details.length > 0);
 
           return {
             ...prev,
@@ -493,6 +514,80 @@ function App() {
     }
   };
 
+  const handlePeriodCustomizationChange = (
+    provider: string,
+    metricLabel: string,
+    durationMinutes: number | null
+  ) => {
+    if (durationMinutes === null) {
+      setPeriodCustomizations((prev) =>
+        prev.filter(
+          (c) => !(c.provider === provider && c.metricLabel === metricLabel)
+        )
+      );
+    } else {
+      setPeriodCustomizations((prev) => {
+        const existingIndex = prev.findIndex(
+          (c) => c.provider === provider && c.metricLabel === metricLabel
+        );
+
+        if (existingIndex >= 0) {
+          const updated = [...prev];
+          updated[existingIndex] = {
+            provider: provider as
+              | 'z_ai'
+              | 'claude'
+              | 'codex'
+              | 'gemini'
+              | 'external_models',
+            metricLabel,
+            totalDurationMinutes: durationMinutes,
+          };
+          return updated;
+        } else {
+          return [
+            ...prev,
+            {
+              provider: provider as
+                | 'z_ai'
+                | 'claude'
+                | 'codex'
+                | 'gemini'
+                | 'external_models',
+              metricLabel,
+              totalDurationMinutes: durationMinutes,
+            },
+          ];
+        }
+      });
+    }
+
+    if (window.electronAPI.setPeriodCustomization) {
+      window.electronAPI.setPeriodCustomization(
+        provider,
+        metricLabel,
+        durationMinutes
+      );
+    }
+  };
+
+  const handleResetAllPeriodCustomizations = () => {
+    setPeriodCustomizations([]);
+    if (window.electronAPI.setPeriodCustomizations) {
+      window.electronAPI.setPeriodCustomizations([]);
+    }
+  };
+
+  const getCustomDuration = (
+    provider: string,
+    metricLabel: string
+  ): number | undefined => {
+    const custom = periodCustomizations.find(
+      (c) => c.provider === provider && c.metricLabel === metricLabel
+    );
+    return custom?.totalDurationMinutes;
+  };
+
   const getSortedProviders = (entries: [string, ProviderData][]) => {
     const order =
       providerOrder.length > 0 ? providerOrder : DEFAULT_PROVIDER_ORDER;
@@ -539,7 +634,7 @@ function App() {
 
     // Re-calculate indices after potential pushes
     const finalOldIndex = currentOrder.indexOf(draggedProviderKey);
-    let finalNewIndex = currentOrder.indexOf(targetProviderKey);
+    const finalNewIndex = currentOrder.indexOf(targetProviderKey);
 
     if (finalOldIndex > -1 && finalNewIndex > -1) {
       const newOrder = [...currentOrder];
@@ -658,6 +753,8 @@ function App() {
               providerColors={providerColors}
               onToggleMetricExclusion={handleToggleMetricExclusion}
               iconSettings={iconSettings}
+              getCustomDuration={getCustomDuration}
+              onPeriodCustomizationChange={handlePeriodCustomizationChange}
             />
           </div>
         ))}
@@ -765,6 +862,11 @@ function App() {
               providerColors={providerColors}
               onProviderColorChange={handleProviderColorChange}
               onProviderColorReset={handleProviderColorReset}
+              periodCustomizations={periodCustomizations}
+              onPeriodCustomizationChange={handlePeriodCustomizationChange}
+              onResetAllPeriodCustomizations={
+                handleResetAllPeriodCustomizations
+              }
             />
           )}
         </div>

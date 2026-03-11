@@ -11,8 +11,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { existsSync, promises as fsPromises } from 'fs';
-import { exec, spawn } from 'child_process';
-import AutoLaunch from 'auto-launch';
+import { spawn } from 'child_process';
 import electronUpdater from 'electron-updater';
 const { autoUpdater } = electronUpdater;
 import { startPolling, refreshAll, updatePollingInterval } from './poller.js';
@@ -23,6 +22,9 @@ import {
   getSetting,
   setSetting,
   getUsageHistory,
+  getPeriodCustomizations,
+  setPeriodCustomizations,
+  setPeriodCustomization,
 } from './secure-store.js';
 import {
   debug,
@@ -548,7 +550,7 @@ app.on('before-quit', () => {
 function authenticateProvider(
   provider: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models'
 ) {
-  let activeWindows: Set<Electron.BrowserWindow> = new Set();
+  const activeWindows: Set<Electron.BrowserWindow> = new Set();
   const authWindow = new BrowserWindow({
     width: 1000,
     height: 800,
@@ -1145,6 +1147,27 @@ ipcMain.on('open-debug-window', () => {
     debugWindow = null;
   });
 });
+
+ipcMain.handle('get-period-customizations', async () => {
+  return getPeriodCustomizations();
+});
+
+ipcMain.on('set-period-customizations', async (_event, customizations) => {
+  setPeriodCustomizations(customizations);
+  if (tray) {
+    refreshAll(tray);
+  }
+});
+
+ipcMain.on(
+  'set-period-customization',
+  async (_event, { provider, metricLabel, durationMinutes }) => {
+    setPeriodCustomization(provider, metricLabel, durationMinutes);
+    if (tray) {
+      refreshAll(tray);
+    }
+  }
+);
 
 ipcMain.on('open-usage-details', () => {
   if (usageDetailsWindow && !usageDetailsWindow.isDestroyed()) {

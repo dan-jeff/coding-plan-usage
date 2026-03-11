@@ -1,8 +1,12 @@
 import React from 'react';
 import { UsageDetail, IconSettings } from '../types';
 import { getStyles, getTheme } from '../theme';
+import { Settings } from 'lucide-react';
 
-const getBarColor = (percentage: number, theme: any): string => {
+const getBarColor = (
+  percentage: number,
+  theme: { accentRed: string; accentYellow: string; accentGreen: string }
+): string => {
   if (percentage >= 80) return theme.accentRed;
   if (percentage >= 50) return theme.accentYellow;
   return theme.accentGreen;
@@ -13,16 +17,24 @@ export const GenericUsageDisplay = ({
   providerKey,
   onToggleMetricExclusion,
   iconSettings,
+  getCustomDuration,
+  onEditPeriod,
 }: {
   detail: UsageDetail;
   providerKey: string;
   onToggleMetricExclusion?: (providerKey: string, label: string) => void;
   iconSettings: IconSettings;
+  getCustomDuration?: (
+    provider: string,
+    metricLabel: string
+  ) => number | undefined;
+  onEditPeriod?: (metricLabel: string, apiDefault: number | undefined) => void;
 }) => {
   const styles = getStyles(iconSettings.glassMode);
   const theme = getTheme(iconSettings.glassMode);
   const [isHovered, setIsHovered] = React.useState(false);
   const isUnavailable = detail.displayReset === 'Unavailable';
+  const hasUsageData = detail.hasUsageData !== false;
   const compositeKey = `${providerKey}|${detail.label}`;
   const isExcluded =
     iconSettings?.excludedMetrics.includes(compositeKey) || false;
@@ -31,9 +43,20 @@ export const GenericUsageDisplay = ({
   const isTimeLimited = detail.timeRemainingMinutes !== undefined;
 
   const totalDuration = detail.totalDurationMinutes || 300;
+
+  // Get custom duration if available
+  const customDuration = getCustomDuration?.(providerKey, detail.label);
+  const effectiveTotalDuration = customDuration ?? totalDuration;
+  const hasCustomDuration = customDuration !== undefined;
+  const canEditPeriod =
+    onEditPeriod !== undefined && effectiveTotalDuration > 0;
+
   const timeElapsedPct = Math.max(
     0,
-    Math.min(100, ((totalDuration - safeMinutes) / totalDuration) * 100)
+    Math.min(
+      100,
+      ((effectiveTotalDuration - safeMinutes) / effectiveTotalDuration) * 100
+    )
   );
 
   let usageColor = getBarColor(detail.percentage, theme);
@@ -118,7 +141,7 @@ export const GenericUsageDisplay = ({
             )}
           </span>
           <span style={{ fontWeight: 600, color: theme.textMain }}>
-            {detail.percentage}%
+            {hasUsageData ? `${detail.percentage}%` : '--'}
           </span>
         </div>
         <div style={styles.progressTrack}>
@@ -127,7 +150,9 @@ export const GenericUsageDisplay = ({
               ...styles.progressBar,
               width: isUnavailable
                 ? '0%'
-                : `${Math.min(detail.percentage, 100)}%`,
+                : hasUsageData
+                  ? `${Math.min(detail.percentage, 100)}%`
+                  : '0%',
               backgroundColor: usageColor,
               opacity: isUnavailable ? 0.1 : 1,
             }}
@@ -147,11 +172,46 @@ export const GenericUsageDisplay = ({
         )}
       </div>
 
-      {/* Row 2: Time Remaining (only for time-limited metrics) */}
-      {isTimeLimited && (
+      {/* Row 2: Time Remaining (only for time-limited metrics with duration data) */}
+      {(isTimeLimited || effectiveTotalDuration > 0) && (
         <div>
           <div style={styles.usageHeader}>
-            <span>Time Remaining</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              Time Remaining
+              {canEditPeriod && (
+                <button
+                  onClick={() =>
+                    onEditPeriod?.(detail.label, detail.totalDurationMinutes)
+                  }
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: hasCustomDuration
+                      ? theme.accentYellow
+                      : theme.textSec,
+                    cursor: 'pointer',
+                    padding: '2px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    opacity: 0.7,
+                    transition: 'opacity 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.target as HTMLElement).style.opacity = '1';
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.target as HTMLElement).style.opacity = '0.7';
+                  }}
+                  title={
+                    hasCustomDuration
+                      ? 'Edit custom period'
+                      : 'Set custom period'
+                  }
+                >
+                  <Settings size={12} />
+                </button>
+              )}
+            </span>
             <span style={{ fontWeight: 600, color: theme.textMain }}>
               {detail.displayReset}
             </span>

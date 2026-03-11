@@ -39,11 +39,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('provider-disconnected', callback);
     };
   },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onUsageUpdate: (
     callback: (
       event: IpcRendererEvent,
-      data: { provider: string; usage: string; details?: any[] }
+      data: { provider: string; usage: string; details?: unknown[] }
     ) => void
   ) => {
     ipcRenderer.on('usage-update', callback);
@@ -51,7 +50,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('usage-update', callback);
     };
   },
-  onUpdateStatus: (callback: (event: IpcRendererEvent, data: any) => void) => {
+  onUpdateStatus: (
+    callback: (event: IpcRendererEvent, data: unknown) => void
+  ) => {
     ipcRenderer.on('update-status', callback);
     return () => {
       ipcRenderer.removeListener('update-status', callback);
@@ -59,7 +60,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   getLogs: () => ipcRenderer.invoke('get-logs'),
   clearLogs: () => ipcRenderer.invoke('clear-logs'),
-  onLogEntry: (callback: (event: IpcRendererEvent, entry: any) => void) => {
+  onLogEntry: (callback: (event: IpcRendererEvent, entry: unknown) => void) => {
     ipcRenderer.on('log-entry', callback);
     return () => {
       ipcRenderer.removeListener('log-entry', callback);
@@ -72,7 +73,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openDebugWindow: () => ipcRenderer.send('open-debug-window'),
   openUsageDetails: () => ipcRenderer.send('open-usage-details'),
   getIconSettings: () => ipcRenderer.invoke('get-icon-settings'),
-  setIconSettings: (settings: any) =>
+  setIconSettings: (settings: unknown) =>
     ipcRenderer.send('set-icon-settings', settings),
   getProviderAccentColors: () =>
     ipcRenderer.invoke('get-provider-accent-colors'),
@@ -83,4 +84,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.send('set-provider-command', { provider, command }),
   startSession: (provider: string) =>
     ipcRenderer.send('start-session', provider),
+  getPeriodCustomizations: () =>
+    ipcRenderer.invoke('get-period-customizations'),
+  setPeriodCustomizations: (customizations: unknown[]) =>
+    ipcRenderer.send('set-period-customizations', customizations),
+  setPeriodCustomization: (
+    provider: string,
+    metricLabel: string,
+    durationMinutes: number | null
+  ) =>
+    ipcRenderer.send('set-period-customization', {
+      provider,
+      metricLabel,
+      durationMinutes,
+    }),
 });

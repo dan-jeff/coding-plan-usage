@@ -1,3 +1,9 @@
+export interface ProviderPeriodCustomization {
+  provider: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models';
+  metricLabel: string;
+  totalDurationMinutes: number;
+}
+
 export interface ProviderAccentColors {
   z_ai: string;
   claude: string;
@@ -24,6 +30,7 @@ export interface IconSettings {
   providerColors?: ProviderAccentColors;
   excludedMetrics: string[];
   glassMode: boolean;
+  periodCustomizations?: ProviderPeriodCustomization[];
 }
 
 export interface UsageHistoryEntry {
@@ -36,7 +43,7 @@ export interface LogEntry {
   timestamp: string;
   level: 'debug' | 'info' | 'warn' | 'error';
   message: string;
-  context?: any;
+  context?: unknown;
 }
 
 export interface UpdateStatusData {
@@ -59,6 +66,7 @@ export interface UpdateStatusData {
 export interface UsageDetail {
   label: string;
   percentage: number;
+  hasUsageData?: boolean;
   displayReset?: string;
   timeRemainingMinutes?: number;
   totalDurationMinutes?: number;
@@ -88,18 +96,15 @@ declare global {
         gemini: boolean;
         external_models: boolean;
       }>;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onProviderConnected: (
-        callback: (event: any, provider: string) => void
+        callback: (event: unknown, provider: string) => void
       ) => () => void;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onProviderDisconnected: (
-        callback: (event: any, provider: string) => void
+        callback: (event: unknown, provider: string) => void
       ) => () => void;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onUsageUpdate: (
         callback: (
-          event: any,
+          event: unknown,
           data: { provider: string; usage: string; details?: UsageDetail[] }
         ) => void
       ) => () => void;
@@ -114,12 +119,12 @@ declare global {
       checkForUpdate: () => void;
       quitAndInstall: () => void;
       onUpdateStatus: (
-        callback: (event: any, data: UpdateStatusData) => void
+        callback: (event: unknown, data: UpdateStatusData) => void
       ) => () => void;
       getLogs: () => Promise<LogEntry[]>;
       clearLogs: () => Promise<void>;
       onLogEntry: (
-        callback: (event: any, entry: LogEntry) => void
+        callback: (event: unknown, entry: LogEntry) => void
       ) => () => void;
       resizeWindow: (height: number) => void;
       getProviderOrder: () => Promise<string[]>;
@@ -137,6 +142,15 @@ declare global {
       getProviderCommands: () => Promise<Record<string, string> | null>;
       getUsageHistory: () => Promise<UsageHistoryEntry[]>;
       openUsageDetails: () => void;
+      getPeriodCustomizations: () => Promise<ProviderPeriodCustomization[]>;
+      setPeriodCustomization: (
+        provider: string,
+        metricLabel: string,
+        durationMinutes: number | null
+      ) => void;
+      setPeriodCustomizations: (
+        customizations: ProviderPeriodCustomization[]
+      ) => void;
     };
   }
 }

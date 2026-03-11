@@ -1,9 +1,10 @@
 import { BrowserWindow } from 'electron';
 
-let targetWindow: BrowserWindow | null = null;
-
-export function setTargetWindow(window: BrowserWindow | null): void {
-  targetWindow = window;
+export function setTargetWindow(_window: BrowserWindow | null): void {
+  // Intentionally unused parameter - kept for API compatibility
+  void _window;
+  // Target window is set but not used in this module
+  // Kept for potential future use or external references
 }
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';

@@ -31,6 +31,80 @@ interface GraphData {
 
 type ProviderKey = keyof ProviderAccentColors;
 
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    name: string;
+    value: number;
+    color: string;
+    payload: { date: string };
+  }>;
+  formatFullDate: (dateStr: string) => string;
+  theme: ReturnType<typeof getTheme>;
+}
+
+const CustomTooltip: React.FC<CustomTooltipProps> = ({
+  active,
+  payload,
+  formatFullDate,
+  theme,
+}) => {
+  if (!active || !payload || payload.length === 0) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        backgroundColor: theme.card,
+        border: `1px solid ${theme.glassBorder}`,
+        borderRadius: '8px',
+        padding: '12px',
+        fontSize: '12px',
+        color: theme.textMain,
+        minWidth: '150px',
+        boxShadow: theme.glassShadow,
+        backdropFilter: theme.blur,
+        WebkitBackdropFilter: theme.blur,
+      }}
+    >
+      <div style={{ fontWeight: 600, marginBottom: '8px', fontSize: '13px' }}>
+        {formatFullDate(payload[0].payload.date)}
+      </div>
+      {payload.map((entry, index) => (
+        <div
+          key={index}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            marginBottom: index < payload.length - 1 ? '6px' : '0',
+            paddingBottom: index < payload.length - 1 ? '6px' : '0',
+            borderBottom:
+              index < payload.length - 1 ? `1px solid ${theme.border}` : 'none',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div
+              style={{
+                width: '12px',
+                height: '12px',
+                borderRadius: '50%',
+                backgroundColor: entry.color,
+              }}
+            />
+            <span>
+              {PROVIDER_CONFIG[entry.name as ProviderKey]?.label || entry.name}
+            </span>
+          </div>
+          <span style={{ fontWeight: 600 }}>{entry.value}%</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const PROVIDER_CONFIG: Record<
   ProviderKey,
   { label: string; statsTitle: string; usageTitle: string }
@@ -64,6 +138,7 @@ const PROVIDER_CONFIG: Record<
 
 export const UsageDetails: React.FC<UsageDetailsProps> = ({
   data,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onBack,
   activeProviders,
   providerColors,
@@ -264,69 +339,6 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
     `${provider}-detail-gradient`;
   const onlyGradientId = (provider: ProviderKey) => `${provider}-only-gradient`;
 
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div
-          style={{
-            backgroundColor: theme.card,
-            border: `1px solid ${theme.glassBorder}`,
-            borderRadius: '8px',
-            padding: '12px',
-            fontSize: '12px',
-            color: theme.textMain,
-            minWidth: '150px',
-            boxShadow: theme.glassShadow,
-            backdropFilter: theme.blur,
-            WebkitBackdropFilter: theme.blur,
-          }}
-        >
-          <div
-            style={{ fontWeight: 600, marginBottom: '8px', fontSize: '13px' }}
-          >
-            {formatFullDate(payload[0].payload.date)}
-          </div>
-          {payload.map((entry: any, index: number) => (
-            <div
-              key={index}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '12px',
-                marginBottom: index < payload.length - 1 ? '6px' : '0',
-                paddingBottom: index < payload.length - 1 ? '6px' : '0',
-                borderBottom:
-                  index < payload.length - 1
-                    ? `1px solid ${theme.border}`
-                    : 'none',
-              }}
-            >
-              <div
-                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-              >
-                <div
-                  style={{
-                    width: '12px',
-                    height: '12px',
-                    borderRadius: '50%',
-                    backgroundColor: entry.color,
-                  }}
-                />
-                <span>
-                  {PROVIDER_CONFIG[entry.name as ProviderKey]?.label ||
-                    entry.name}
-                </span>
-              </div>
-              <span style={{ fontWeight: 600 }}>{entry.value}%</span>
-            </div>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
-
   if (graphData.length === 0) {
     return (
       <div style={styles.scrollArea}>
@@ -489,7 +501,14 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
                   tickLine={false}
                   tickFormatter={(value) => `${value}%`}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip
+                  content={
+                    <CustomTooltip
+                      formatFullDate={formatFullDate}
+                      theme={theme}
+                    />
+                  }
+                />
                 {orderedProviders.map((provider) => (
                   <Area
                     key={provider}
@@ -594,7 +613,14 @@ export const UsageDetails: React.FC<UsageDetailsProps> = ({
                         tickLine={false}
                         tickFormatter={(value) => `${value}%`}
                       />
-                      <Tooltip content={<CustomTooltip />} />
+                      <Tooltip
+                        content={
+                          <CustomTooltip
+                            formatFullDate={formatFullDate}
+                            theme={theme}
+                          />
+                        }
+                      />
                       <Area
                         type="monotone"
                         dataKey={provider}

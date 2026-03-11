@@ -1,7 +1,6 @@
 import {
   Tray,
   net,
-  app,
   Notification,
   BrowserWindow,
   nativeImage,
@@ -12,9 +11,9 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import {
   getSession,
-  hasSession,
   getSetting,
   addUsageHistory,
+  getPeriodCustomization,
   type ProviderConfig,
 } from './secure-store.js';
 import { debug, info, warn, error } from './logger.js';
@@ -66,6 +65,7 @@ interface IconSettings {
 export interface UsageDetail {
   label: string; // e.g., "5-Hour", "7-Day"
   percentage: number; // 0-100
+  hasUsageData?: boolean;
   limit: string | number; // Raw value if available
   used: string | number; // Raw value if available
   resetTime?: string; // ISO date
@@ -245,7 +245,9 @@ export async function refreshAll(tray: Tray) {
 
     // Handle Gemini provider
     if (splitStatus.gemini.connected && splitStatus.gemini.details.length > 0) {
-      const usageStr = `${splitStatus.gemini.usagePercent}%`;
+      const usageStr = splitStatus.gemini.hasUsageData
+        ? `${splitStatus.gemini.usagePercent}%`
+        : null;
       debug(
         `[POLLER DEBUG] Pushing Gemini to results: provider=gemini, usage=${usageStr}, details.length=${splitStatus.gemini.details.length}`
       );
@@ -255,7 +257,9 @@ export async function refreshAll(tray: Tray) {
         details: splitStatus.gemini.details,
       });
 
-      addUsageHistory('gemini', splitStatus.gemini.usagePercent);
+      if (splitStatus.gemini.hasUsageData) {
+        addUsageHistory('gemini', splitStatus.gemini.usagePercent);
+      }
       debug(
         `[POLLER DEBUG] Calling notifyUsageUpdate with: provider=gemini, usage=${usageStr}, details.length=${splitStatus.gemini.details.length}`
       );
@@ -275,7 +279,9 @@ export async function refreshAll(tray: Tray) {
       splitStatus.external.connected &&
       splitStatus.external.details.length > 0
     ) {
-      const usageStr = `${splitStatus.external.usagePercent}%`;
+      const usageStr = splitStatus.external.hasUsageData
+        ? `${splitStatus.external.usagePercent}%`
+        : null;
       debug(
         `[POLLER DEBUG] Pushing External Models to results: provider=external_models, usage=${usageStr}, details.length=${splitStatus.external.details.length}`
       );
@@ -285,7 +291,9 @@ export async function refreshAll(tray: Tray) {
         details: splitStatus.external.details,
       });
 
-      addUsageHistory('external_models', splitStatus.external.usagePercent);
+      if (splitStatus.external.hasUsageData) {
+        addUsageHistory('external_models', splitStatus.external.usagePercent);
+      }
       debug(
         `[POLLER DEBUG] Calling notifyUsageUpdate with: provider=external_models, usage=${usageStr}, details.length=${splitStatus.external.details.length}`
       );
@@ -329,13 +337,34 @@ function notifyUsageUpdate(
   debug(
     `[NOTIFY DEBUG] notifyUsageUpdate called: provider=${provider}, usage=${usage}, details.length=${details.length}`
   );
+
+  const enhancedDetails = details.map((detail) => {
+    const customDuration = getPeriodCustomization(
+      provider as 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models',
+      detail.label
+    );
+    if (customDuration) {
+      debug(
+        `Using custom duration for ${provider}|${detail.label}: ${customDuration} min`
+      );
+    }
+    return {
+      ...detail,
+      totalDurationMinutes: customDuration ?? detail.totalDurationMinutes,
+    };
+  });
+
   const wins = BrowserWindow.getAllWindows();
   debug(`[NOTIFY DEBUG] Found ${wins.length} browser windows`);
   wins.forEach((win, index) => {
     debug(
-      `[NOTIFY DEBUG] Sending usage-update to window ${index}: ${JSON.stringify({ provider, usage, details })}`
+      `[NOTIFY DEBUG] Sending usage-update to window ${index}: ${JSON.stringify({ provider, usage, details: enhancedDetails })}`
     );
-    win.webContents.send('usage-update', { provider, usage, details });
+    win.webContents.send('usage-update', {
+      provider,
+      usage,
+      details: enhancedDetails,
+    });
   });
   debug('[NOTIFY DEBUG] notifyUsageUpdate completed');
 }
@@ -456,7 +485,6 @@ function parseUsage(body: string): {
       { detail: UsageDetail; preference: number }
     > = {};
     let maxUsage = 0;
-    let primaryResetTime: string | undefined;
 
     const getMatchPreference = (match: UsageMatch): number => {
       const context = [
@@ -487,26 +515,26 @@ function parseUsage(body: string): {
       let label = match.label;
       let totalDurationMinutes: number | undefined;
 
-      if (match.resetTime && !label) {
+      if (match.resetTime) {
         const resetDate = new Date(match.resetTime);
         if (!isNaN(resetDate.getTime())) {
           const diff = resetDate.getTime() - Date.now();
           // 5-Hour Window (<= 6 hours)
           if (diff <= 21600000) {
-            label = '5-Hour Window';
+            if (!label) label = '5-Hour Window';
             totalDurationMinutes = 300;
           }
           // Weekly Limit (> 24h AND <= 8 days)
           else if (diff > 86400000 && diff <= 691200000) {
-            label = 'Weekly Limit';
+            if (!label) label = 'Weekly Limit';
             totalDurationMinutes = 10080; // 7 days * 24h * 60m
           }
           // Monthly Limit (> 8 days AND <= 32 days)
           else if (diff > 691200000 && diff <= 2764800000) {
-            label = 'Monthly Limit';
+            if (!label) label = 'Monthly Limit';
             totalDurationMinutes = 43200; // 30 days
           } else {
-            label = 'Token Usage';
+            if (!label) label = 'Token Usage';
           }
         }
       }
@@ -586,7 +614,9 @@ function parseUsage(body: string): {
       }
     }
 
-    let details = Object.values(aggregatedDetails).map((entry) => entry.detail);
+    const details = Object.values(aggregatedDetails).map(
+      (entry) => entry.detail
+    );
 
     details.sort((a, b) => {
       const getPriority = (d: UsageDetail): number => {
@@ -618,7 +648,7 @@ function parseUsage(body: string): {
         extraText = ` (Resets in ${primaryMetric.displayReset})`;
       }
 
-      primaryResetTime = primaryMetric.resetTime;
+      void primaryMetric.resetTime;
 
       debug(
         `Parsed usage: ${percentage}%${extraText}, Details: ${details.map((d) => `${d.label}: ${d.percentage}%`).join(', ')}`
@@ -955,9 +985,8 @@ function classifyLabelFromKey(key: string, parentKeys: string[]): string {
   return deriveLabelFromKey(key);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function findAllUsages(
-  obj: any,
+  obj: unknown,
   depth: number = 0,
   parentKeys: string[] = []
 ): UsageMatch[] {
@@ -975,7 +1004,7 @@ function findAllUsages(
           (item.type === 'TOKENS_LIMIT' || item.type === 'TIME_LIMIT')
         ) {
           const label =
-            item.type === 'TIME_LIMIT' ? '5-Hour Window' : 'Token Usage';
+            item.type === 'TIME_LIMIT' ? 'Monthly Limit' : '5-Hour Window';
           const pct =
             item.percentage !== undefined ? Number(item.percentage) : 0;
           const resetTime = item.nextResetTime || item.resetTime;
@@ -998,18 +1027,20 @@ function findAllUsages(
     return matches;
   }
 
-  if (obj['type'] === 'TIME_LIMIT' || obj['type'] === 'TOKENS_LIMIT') {
+  const objAny = obj as any;
+  if (objAny['type'] === 'TIME_LIMIT' || objAny['type'] === 'TOKENS_LIMIT') {
     const label =
-      obj['type'] === 'TIME_LIMIT' ? '5-Hour Window' : 'Token Usage';
-    const pct = obj['percentage'] !== undefined ? Number(obj['percentage']) : 0;
-    const resetTime = obj['nextResetTime'] || obj['resetTime'];
+      objAny['type'] === 'TIME_LIMIT' ? 'Monthly Limit' : '5-Hour Window';
+    const pct =
+      objAny['percentage'] !== undefined ? Number(objAny['percentage']) : 0;
+    const resetTime = objAny['nextResetTime'] || objAny['resetTime'];
 
     matches.push({
       value: pct,
       label: label,
       resetTime: resetTime,
-      limit: obj['usage'],
-      used: obj['currentValue'],
+      limit: objAny['usage'],
+      used: objAny['currentValue'],
       keySource: 'z_ai_limit',
     });
     return matches;
@@ -1031,9 +1062,9 @@ function findAllUsages(
   ) {
     label = 'Token Usage';
   } else if (lastParent === 'limits') {
-    if (obj['type'] === 'TIME_LIMIT') {
+    if (objAny['type'] === 'TIME_LIMIT') {
       label = '5-Hour Window';
-    } else if (obj['type'] === 'TOKENS_LIMIT') {
+    } else if (objAny['type'] === 'TOKENS_LIMIT') {
       label = 'Token Usage';
     }
   }
@@ -1042,7 +1073,7 @@ function findAllUsages(
     /percent|percentage|usage_percent|utilization/i.test(k)
   );
   if (percentKey) {
-    const val = obj[percentKey];
+    const val = objAny[percentKey];
     let numVal: number | undefined;
 
     if (typeof val === 'number') numVal = val;
@@ -1055,15 +1086,15 @@ function findAllUsages(
       const resetKey = keys.find((k) => /reset/i.test(k));
       let resetTime: string | undefined;
       if (resetKey) {
-        resetTime = obj[resetKey];
+        resetTime = objAny[resetKey];
       }
 
       const usedKey = keys.find(
         (k) => /used|usage/i.test(k) && k !== percentKey
       );
       const limitKey = keys.find((k) => /limit|quota|total/i.test(k));
-      const used = usedKey ? obj[usedKey] : undefined;
-      const limit = limitKey ? obj[limitKey] : undefined;
+      const used = usedKey ? objAny[usedKey] : undefined;
+      const limit = limitKey ? objAny[limitKey] : undefined;
 
       const finalLabel = label || classifyLabelFromKey(percentKey, parentKeys);
 
@@ -1084,11 +1115,11 @@ function findAllUsages(
     const limitKey = keys.find((k) => /limit|quota|total/i.test(k));
 
     if (usedKey && limitKey) {
-      const used = Number(obj[usedKey]);
-      const limit = Number(obj[limitKey]);
+      const used = Number(objAny[usedKey]);
+      const limit = Number(objAny[limitKey]);
 
       const resetKey = keys.find((k) => /reset/i.test(k));
-      const resetTime = resetKey ? obj[resetKey] : undefined;
+      const resetTime = resetKey ? objAny[resetKey] : undefined;
 
       if (!isNaN(used) && !isNaN(limit) && limit > 0) {
         const finalLabel = label || classifyLabelFromKey(usedKey, parentKeys);
@@ -1097,8 +1128,8 @@ function findAllUsages(
           value: (used / limit) * 100,
           keySource: 'calculated',
           label: finalLabel,
-          used: obj[usedKey],
-          limit: obj[limitKey],
+          used: objAny[usedKey],
+          limit: objAny[limitKey],
           resetTime,
           keyContext: parentKeys,
         });
@@ -1107,7 +1138,9 @@ function findAllUsages(
   }
 
   for (const key of keys) {
-    matches.push(...findAllUsages(obj[key], depth + 1, [...parentKeys, key]));
+    matches.push(
+      ...findAllUsages(objAny[key], depth + 1, [...parentKeys, key])
+    );
   }
 
   return matches;
@@ -1208,7 +1241,17 @@ function updateTray(tray: Tray, results: PollResult[]) {
     if (iconSettings.coloringMode === 'rate') {
       let hasRateData = false;
       for (const detail of nonExcludedDetails) {
-        const totalDuration = detail.totalDurationMinutes || 300;
+        const customDuration = getPeriodCustomization(
+          result.provider,
+          detail.label
+        );
+        if (customDuration) {
+          debug(
+            `Using custom duration for ${result.provider}|${detail.label}: ${customDuration} min`
+          );
+        }
+        const totalDuration =
+          customDuration ?? detail.totalDurationMinutes ?? 300;
 
         if (totalDuration > 0 && detail.timeRemainingMinutes !== undefined) {
           hasRateData = true;

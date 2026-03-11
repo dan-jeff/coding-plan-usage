@@ -42,7 +42,7 @@ export const UsageDetailsWindow = () => {
     };
     loadUsageHistory();
 
-    const unsubscribe = window.electronAPI.onUsageUpdate((_event, data) => {
+    const unsubscribe = window.electronAPI.onUsageUpdate(() => {
       window.electronAPI
         .getUsageHistory()
         .then(setUsageHistory)

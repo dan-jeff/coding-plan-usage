@@ -31,6 +31,73 @@ interface GraphData {
 
 type ProviderKey = keyof ProviderAccentColors;
 
+interface GraphCustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    name: string;
+    value: number;
+    color: string;
+    payload: { date: string };
+  }>;
+  formatDate: (dateStr: string) => string;
+  theme: ReturnType<typeof getTheme>;
+}
+
+const GraphCustomTooltip: React.FC<GraphCustomTooltipProps> = ({
+  active,
+  payload,
+  formatDate,
+  theme,
+}) => {
+  if (!active || !payload || payload.length === 0) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        backgroundColor: theme.card,
+        border: `1px solid ${theme.glassBorder}`,
+        borderRadius: '8px',
+        padding: '12px',
+        fontSize: '12px',
+        color: theme.textMain,
+        boxShadow: theme.glassShadow,
+        backdropFilter: theme.blur,
+        WebkitBackdropFilter: theme.blur,
+      }}
+    >
+      <div style={{ fontWeight: 600, marginBottom: '6px' }}>
+        {formatDate(payload[0].payload.date)}
+      </div>
+      {payload.map((entry, index) => (
+        <div
+          key={index}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: index < payload.length - 1 ? '4px' : '0',
+          }}
+        >
+          <div
+            style={{
+              width: '10px',
+              height: '10px',
+              borderRadius: '50%',
+              backgroundColor: entry.color,
+            }}
+          />
+          <span>
+            {PROVIDER_LABELS[entry.name as ProviderKey] || entry.name}:
+            {` ${entry.value}%`}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const PROVIDER_LABELS: Record<ProviderKey, string> = {
   z_ai: 'Z.ai',
   claude: 'Claude',
@@ -153,55 +220,6 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
   const formatDate = (dateStr: string): string => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div
-          style={{
-            backgroundColor: theme.card,
-            border: `1px solid ${theme.glassBorder}`,
-            borderRadius: '8px',
-            padding: '12px',
-            fontSize: '12px',
-            color: theme.textMain,
-            boxShadow: theme.glassShadow,
-            backdropFilter: theme.blur,
-            WebkitBackdropFilter: theme.blur,
-          }}
-        >
-          <div style={{ fontWeight: 600, marginBottom: '6px' }}>
-            {formatDate(payload[0].payload.date)}
-          </div>
-          {payload.map((entry: any, index: number) => (
-            <div
-              key={index}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginBottom: index < payload.length - 1 ? '4px' : '0',
-              }}
-            >
-              <div
-                style={{
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '50%',
-                  backgroundColor: entry.color,
-                }}
-              />
-              <span>
-                {PROVIDER_LABELS[entry.name as ProviderKey] || entry.name}:
-                {` ${entry.value}%`}
-              </span>
-            </div>
-          ))}
-        </div>
-      );
-    }
-    return null;
   };
 
   if (graphData.length === 0) {
@@ -354,7 +372,11 @@ export const UsageGraph: React.FC<UsageGraphProps> = ({
               tickFormatter={(value) => `${value}%`}
               width={30}
             />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip
+              content={
+                <GraphCustomTooltip formatDate={formatDate} theme={theme} />
+              }
+            />
             {orderedProviders.map((provider) => (
               <Area
                 key={provider}

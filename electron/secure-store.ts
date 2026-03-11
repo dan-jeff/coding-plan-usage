@@ -1,6 +1,7 @@
 import { safeStorage } from 'electron';
 import Store from 'electron-store';
 import { debug, info, warn, error } from './logger.js';
+import { ProviderPeriodCustomization } from '../src/types.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const store = new Store<any>();
@@ -153,4 +154,67 @@ export function getUsageHistory(): UsageHistoryEntry[] {
     []
   ) as UsageHistoryEntry[];
   return history;
+}
+
+export function getPeriodCustomizations(): ProviderPeriodCustomization[] {
+  return store.get('periodCustomizations', []);
+}
+
+export function setPeriodCustomizations(
+  customizations: ProviderPeriodCustomization[]
+): void {
+  store.set('periodCustomizations', customizations);
+  debug('Saved period customizations', { count: customizations.length });
+}
+
+export function getPeriodCustomization(
+  provider: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models',
+  metricLabel: string
+): number | null {
+  const customizations = getPeriodCustomizations();
+  const custom = customizations.find(
+    (c) => c.provider === provider && c.metricLabel === metricLabel
+  );
+  return custom?.totalDurationMinutes ?? null;
+}
+
+export function setPeriodCustomization(
+  provider: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models',
+  metricLabel: string,
+  durationMinutes: number | null
+): void {
+  const customizations = getPeriodCustomizations();
+
+  if (durationMinutes === null) {
+    const filtered = customizations.filter(
+      (c) => !(c.provider === provider && c.metricLabel === metricLabel)
+    );
+    store.set('periodCustomizations', filtered);
+    debug('Removed period customization', { provider, metricLabel });
+  } else {
+    const existingIndex = customizations.findIndex(
+      (c) => c.provider === provider && c.metricLabel === metricLabel
+    );
+
+    if (existingIndex >= 0) {
+      customizations[existingIndex] = {
+        provider,
+        metricLabel,
+        totalDurationMinutes: durationMinutes,
+      };
+    } else {
+      customizations.push({
+        provider,
+        metricLabel,
+        totalDurationMinutes: durationMinutes,
+      });
+    }
+
+    store.set('periodCustomizations', customizations);
+    debug('Saved period customization', {
+      provider,
+      metricLabel,
+      durationMinutes,
+    });
+  }
 }

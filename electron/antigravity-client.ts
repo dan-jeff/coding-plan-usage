@@ -8,6 +8,7 @@ const execAsync = promisify(exec);
 interface UsageDetail {
   label: string;
   percentage: number;
+  hasUsageData?: boolean;
   limit: string | number;
   used: string | number;
   resetTime?: string;
@@ -31,6 +32,7 @@ interface AntigravityModel {
   quotaInfo?: {
     remainingFraction?: number;
     resetTime?: string;
+    [key: string]: unknown;
   };
 }
 
@@ -46,6 +48,7 @@ export interface AntigravityStatus {
   connected: boolean;
   details: UsageDetail[];
   usagePercent: number;
+  hasUsageData: boolean;
 }
 
 export interface SplitAntigravityStatus {
@@ -84,8 +87,18 @@ export class AntigravityClient {
       if (!connected) {
         console.log('[Antigravity] Status check failed - not connected');
         return {
-          gemini: { connected: false, details: [], usagePercent: 0 },
-          external: { connected: false, details: [], usagePercent: 0 },
+          gemini: {
+            connected: false,
+            details: [],
+            usagePercent: 0,
+            hasUsageData: false,
+          },
+          external: {
+            connected: false,
+            details: [],
+            usagePercent: 0,
+            hasUsageData: false,
+          },
         };
       }
     }
@@ -120,16 +133,17 @@ export class AntigravityClient {
         .filter((m) => m.quotaInfo)
         .map((m) => {
           const label = m.label || 'Unknown Model';
-          const remainingFraction = m.quotaInfo?.remainingFraction ?? 1;
-          const percentage = Math.round((1 - remainingFraction) * 100);
+          const usage = this.calculateUsagePercentage(m.quotaInfo);
           const poolId = modelToPool.get(label) || 'default-pool';
 
           let displayReset: string | undefined;
           let timeRemainingMinutes: number | undefined;
           let resetTime: string | undefined;
+          let totalDurationMinutes: number | undefined;
 
           if (m.quotaInfo?.resetTime) {
             resetTime = m.quotaInfo.resetTime;
+            totalDurationMinutes = this.inferTotalDurationMinutes(resetTime);
             const resetDate = new Date(m.quotaInfo.resetTime);
             if (
               !isNaN(resetDate.getTime()) &&
@@ -144,11 +158,13 @@ export class AntigravityClient {
 
           return {
             label,
-            percentage,
+            percentage: usage.percentage,
+            hasUsageData: usage.hasUsageData,
             poolId,
             displayReset,
             timeRemainingMinutes,
             resetTime,
+            totalDurationMinutes,
           };
         });
 
@@ -184,14 +200,16 @@ export class AntigravityClient {
           return null;
         }
 
-        const maxPercentage = Math.max(
-          ...modelsToConsolidate.map((m) => m.percentage),
-          0
-        );
+        const usageValues = modelsToConsolidate
+          .filter((m) => m.hasUsageData)
+          .map((m) => m.percentage);
+        const hasUsageData = usageValues.length > 0;
+        const maxPercentage = hasUsageData ? Math.max(...usageValues, 0) : 0;
 
         let earliestResetTime: string | undefined;
         let shortestTimeRemaining: number | undefined;
         let shortestDisplayReset: string | undefined;
+        let shortestTotalDuration: number | undefined;
 
         for (const model of modelsToConsolidate) {
           if (model.resetTime) {
@@ -202,6 +220,7 @@ export class AntigravityClient {
               earliestResetTime = model.resetTime;
               shortestTimeRemaining = model.timeRemainingMinutes;
               shortestDisplayReset = model.displayReset;
+              shortestTotalDuration = model.totalDurationMinutes;
             }
           }
         }
@@ -209,11 +228,13 @@ export class AntigravityClient {
         return {
           label,
           percentage: maxPercentage,
+          hasUsageData,
           limit: '',
           used: '',
           displayReset: shortestDisplayReset || 'Unavailable',
           timeRemainingMinutes: shortestTimeRemaining,
           resetTime: earliestResetTime,
+          totalDurationMinutes: shortestTotalDuration,
         };
       };
 
@@ -242,11 +263,13 @@ export class AntigravityClient {
           ...otherGeminiModels.map((m) => ({
             label: m.label,
             percentage: m.percentage,
+            hasUsageData: m.hasUsageData,
             limit: '',
             used: '',
             displayReset: m.displayReset || 'Unavailable',
             timeRemainingMinutes: m.timeRemainingMinutes,
             resetTime: m.resetTime,
+            totalDurationMinutes: m.totalDurationMinutes,
           }))
         );
       }
@@ -287,19 +310,31 @@ export class AntigravityClient {
           connected: geminiDetails.length > 0,
           details: geminiDetails,
           usagePercent: geminiUsagePercent,
+          hasUsageData: geminiDetails.some((d) => d.hasUsageData),
         },
         external: {
           connected: externalDetails.length > 0,
           details: externalDetails,
           usagePercent: externalUsagePercent,
+          hasUsageData: externalDetails.some((d) => d.hasUsageData),
         },
       };
     } catch (error) {
       console.log('[Antigravity] Status fetch error:', error);
       this.processInfo = null;
       return {
-        gemini: { connected: false, details: [], usagePercent: 0 },
-        external: { connected: false, details: [], usagePercent: 0 },
+        gemini: {
+          connected: false,
+          details: [],
+          usagePercent: 0,
+          hasUsageData: false,
+        },
+        external: {
+          connected: false,
+          details: [],
+          usagePercent: 0,
+          hasUsageData: false,
+        },
       };
     }
   }
@@ -1000,22 +1035,24 @@ export class AntigravityClient {
     const modelsWithPool: Array<{
       label: string;
       percentage: number;
+      hasUsageData?: boolean;
       poolId: string;
       resetTime?: string;
       displayReset?: string;
       timeRemainingMinutes?: number;
+      totalDurationMinutes?: number;
     }> = [];
 
     filteredModels.forEach((m, index) => {
       const label = m.label || 'Unknown Model';
-      const remainingFraction = m.quotaInfo?.remainingFraction ?? 1;
-      const percentage = Math.round((1 - remainingFraction) * 100);
+      const usage = this.calculateUsagePercentage(m.quotaInfo);
       const poolId = this.inferPoolId(label);
 
       console.log(`[Antigravity] Model ${index + 1}:`, {
         label,
-        remainingFraction,
-        percentage,
+        remainingFraction: m.quotaInfo?.remainingFraction,
+        percentage: usage.percentage,
+        hasUsageData: usage.hasUsageData,
         poolId,
         quotaInfo: m.quotaInfo,
       });
@@ -1023,9 +1060,11 @@ export class AntigravityClient {
       let displayReset: string | undefined;
       let timeRemainingMinutes: number | undefined;
       let resetTime: string | undefined;
+      let totalDurationMinutes: number | undefined;
 
       if (m.quotaInfo?.resetTime) {
         resetTime = m.quotaInfo.resetTime;
+        totalDurationMinutes = this.inferTotalDurationMinutes(resetTime);
         const resetDate = new Date(m.quotaInfo.resetTime);
         if (!isNaN(resetDate.getTime()) && resetDate.getTime() > Date.now()) {
           const diff = resetDate.getTime() - Date.now();
@@ -1037,11 +1076,13 @@ export class AntigravityClient {
 
       modelsWithPool.push({
         label,
-        percentage,
+        percentage: usage.percentage,
+        hasUsageData: usage.hasUsageData,
         poolId,
         displayReset,
         timeRemainingMinutes,
         resetTime,
+        totalDurationMinutes,
       });
     });
 
@@ -1061,11 +1102,16 @@ export class AntigravityClient {
     const results: UsageDetail[] = [];
 
     for (const [poolId, poolModels] of poolMap.entries()) {
-      const maxPercentage = Math.max(...poolModels.map((m) => m.percentage), 0);
+      const usageValues = poolModels
+        .filter((m) => m.hasUsageData)
+        .map((m) => m.percentage);
+      const hasUsageData = usageValues.length > 0;
+      const maxPercentage = hasUsageData ? Math.max(...usageValues, 0) : 0;
 
       let earliestResetTime: string | undefined;
       let shortestTimeRemaining: number | undefined;
       let shortestDisplayReset: string | undefined;
+      let shortestTotalDuration: number | undefined;
 
       for (const model of poolModels) {
         if (model.resetTime) {
@@ -1076,6 +1122,7 @@ export class AntigravityClient {
             earliestResetTime = model.resetTime;
             shortestTimeRemaining = model.timeRemainingMinutes;
             shortestDisplayReset = model.displayReset;
+            shortestTotalDuration = model.totalDurationMinutes;
           }
         }
       }
@@ -1085,16 +1132,19 @@ export class AntigravityClient {
       const result: UsageDetail = {
         label: poolLabel,
         percentage: maxPercentage,
+        hasUsageData,
         limit: '',
         used: '',
         displayReset: shortestDisplayReset || 'Unavailable',
         timeRemainingMinutes: shortestTimeRemaining,
         resetTime: earliestResetTime,
+        totalDurationMinutes: shortestTotalDuration,
       };
 
       console.log(`[Antigravity] Pool ${poolId}:`, {
         modelCount: poolModels.length,
         maxPercentage,
+        hasUsageData,
         resetTime: earliestResetTime,
         displayReset: shortestDisplayReset,
       });
@@ -1123,5 +1173,94 @@ export class AntigravityClient {
     if (h === 0) return `${m}m`;
     if (m === 0) return `${h}h`;
     return `${h}h ${m}m`;
+  }
+
+  private inferTotalDurationMinutes(resetTime?: string): number | undefined {
+    if (!resetTime) return undefined;
+
+    const resetDate = new Date(resetTime);
+    if (isNaN(resetDate.getTime())) return undefined;
+
+    const diffMs = resetDate.getTime() - Date.now();
+    if (diffMs <= 0) return undefined;
+
+    if (diffMs <= 21600000) return 300;
+    if (diffMs <= 691200000) return 10080;
+    if (diffMs <= 2764800000) return 43200;
+
+    return undefined;
+  }
+
+  private calculateUsagePercentage(quotaInfo?: AntigravityModel['quotaInfo']): {
+    percentage: number;
+    hasUsageData: boolean;
+  } {
+    if (!quotaInfo) return { percentage: 0, hasUsageData: false };
+
+    const asNumber = (value: unknown): number | undefined => {
+      if (typeof value === 'number' && !isNaN(value)) return value;
+      if (typeof value === 'string') {
+        const parsed = parseFloat(value);
+        if (!isNaN(parsed)) return parsed;
+      }
+      return undefined;
+    };
+
+    const clampPercent = (value: number): number =>
+      Math.max(0, Math.min(100, value));
+
+    const ratioToPercent = (value: number): number =>
+      value <= 1 ? value * 100 : value;
+
+    const percentLikeKeys = [
+      'usedFraction',
+      'usageFraction',
+      'consumedFraction',
+      'percentUsed',
+      'usedPercent',
+      'percentageUsed',
+      'utilization',
+      'usagePercentage',
+    ];
+
+    for (const key of percentLikeKeys) {
+      const n = asNumber(quotaInfo[key]);
+      if (n !== undefined) {
+        return {
+          percentage: Math.round(clampPercent(ratioToPercent(n))),
+          hasUsageData: true,
+        };
+      }
+    }
+
+    const remainingFraction = asNumber(quotaInfo.remainingFraction);
+    if (remainingFraction !== undefined) {
+      return {
+        percentage: Math.round(clampPercent((1 - remainingFraction) * 100)),
+        hasUsageData: true,
+      };
+    }
+
+    const remainingPercentKeys = ['remainingPercent', 'percentRemaining'];
+    for (const key of remainingPercentKeys) {
+      const n = asNumber(quotaInfo[key]);
+      if (n !== undefined) {
+        return {
+          percentage: Math.round(clampPercent(100 - ratioToPercent(n))),
+          hasUsageData: true,
+        };
+      }
+    }
+
+    const used = asNumber(quotaInfo.used);
+    const limit = asNumber(quotaInfo.limit) ?? asNumber(quotaInfo.quota);
+    if (used !== undefined && limit !== undefined && limit > 0) {
+      return {
+        percentage: Math.round(clampPercent((used / limit) * 100)),
+        hasUsageData: true,
+      };
+    }
+
+    return { percentage: 0, hasUsageData: false };
   }
 }

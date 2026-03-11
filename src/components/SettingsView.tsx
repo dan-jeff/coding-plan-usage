@@ -4,6 +4,7 @@ import {
   UpdateStatusData,
   IconSettings,
   ProviderAccentColors,
+  ProviderPeriodCustomization,
 } from '../types';
 import { getStyles, getTheme } from '../theme';
 
@@ -32,6 +33,13 @@ interface SettingsViewProps {
   providerColors: ProviderAccentColors;
   onProviderColorChange: (provider: string, color: string) => Promise<void>;
   onProviderColorReset: (provider: string) => Promise<void>;
+  periodCustomizations: ProviderPeriodCustomization[];
+  onPeriodCustomizationChange: (
+    provider: string,
+    metricLabel: string,
+    durationMinutes: number | null
+  ) => void;
+  onResetAllPeriodCustomizations: () => void;
 }
 
 export const SettingsView = ({
@@ -57,9 +65,34 @@ export const SettingsView = ({
   providerColors,
   onProviderColorChange,
   onProviderColorReset,
+  periodCustomizations,
+  onPeriodCustomizationChange,
+  onResetAllPeriodCustomizations,
 }: SettingsViewProps) => {
   const styles = getStyles(iconSettings.glassMode);
   const theme = getTheme(iconSettings.glassMode);
+
+  const getCustomDuration = (
+    provider: string,
+    metricLabel: string
+  ): number | undefined => {
+    const custom = periodCustomizations.find(
+      (c) => c.provider === provider && c.metricLabel === metricLabel
+    );
+    return custom?.totalDurationMinutes;
+  };
+
+  const formatDuration = (minutes: number): string => {
+    if (minutes < 120) {
+      return `${minutes} min`;
+    } else if (minutes < 10080) {
+      const hours = Math.round(minutes / 60);
+      return `${hours}h`;
+    } else {
+      const days = Math.round(minutes / 1440);
+      return `${days}d`;
+    }
+  };
 
   return (
     <div>
@@ -404,8 +437,223 @@ export const SettingsView = ({
                 />
               </div>
             )}
+            {data.details &&
+              data.details.length > 0 &&
+              data.details.some(
+                (d) => d.timeRemainingMinutes || d.totalDurationMinutes
+              ) && (
+                <div
+                  style={{
+                    ...styles.settingRow,
+                    gap: '8px',
+                    paddingTop: '4px',
+                  }}
+                >
+                  <span
+                    style={{
+                      ...styles.settingLabel,
+                      fontSize: '11px',
+                      textTransform: 'none',
+                    }}
+                  >
+                    Period Customizations
+                  </span>
+                </div>
+              )}
+            {data.details &&
+              data.details.length > 0 &&
+              data.details.map((detail, idx) => {
+                if (
+                  !detail.timeRemainingMinutes &&
+                  !detail.totalDurationMinutes
+                )
+                  return null;
+
+                const customDuration = getCustomDuration(key, detail.label);
+                const apiDefault = detail.totalDurationMinutes;
+                const hasCustom = customDuration !== undefined;
+
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      ...styles.settingRow,
+                      flexDirection: 'column',
+                      alignItems: 'stretch',
+                      gap: '6px',
+                      padding: '10px 12px',
+                      backgroundColor: hasCustom
+                        ? 'rgba(245, 158, 11, 0.1)'
+                        : undefined,
+                      border: hasCustom
+                        ? `1px solid ${theme.accentYellow}`
+                        : `1px solid ${theme.glassBorder}`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          color: theme.textMain,
+                        }}
+                      >
+                        {detail.label}
+                      </span>
+                      {hasCustom && (
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            color: theme.accentYellow,
+                            fontWeight: 600,
+                          }}
+                        >
+                          CUSTOM: {formatDuration(customDuration)}
+                        </span>
+                      )}
+                    </div>
+
+                    {apiDefault && (
+                      <div style={{ fontSize: '10px', color: theme.textSec }}>
+                        API default: {formatDuration(apiDefault)}
+                      </div>
+                    )}
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: '8px',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: '4px',
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        {[60, 360, 720, 1440, 2880, 4320, 10080].map((mins) => (
+                          <button
+                            key={mins}
+                            onClick={() =>
+                              onPeriodCustomizationChange(
+                                key,
+                                detail.label,
+                                mins
+                              )
+                            }
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              border:
+                                customDuration === mins
+                                  ? `1px solid ${theme.accentGreen}`
+                                  : `1px solid ${theme.border}`,
+                              backgroundColor:
+                                customDuration === mins
+                                  ? theme.accentGreen
+                                  : 'transparent',
+                              color:
+                                customDuration === mins
+                                  ? '#000'
+                                  : theme.textSec,
+                              cursor: 'pointer',
+                              fontSize: '10px',
+                              fontWeight: customDuration === mins ? 600 : 400,
+                              transition: 'all 0.2s',
+                            }}
+                          >
+                            {formatDuration(mins)}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div style={{ flexGrow: 1 }} />
+
+                      <button
+                        onClick={() =>
+                          onPeriodCustomizationChange(
+                            key,
+                            detail.label,
+                            apiDefault || 300
+                          )
+                        }
+                        style={{
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          border: `1px solid ${theme.border}`,
+                          backgroundColor: 'transparent',
+                          color: theme.textSec,
+                          cursor: 'pointer',
+                          fontSize: '10px',
+                        }}
+                      >
+                        Use API
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          onPeriodCustomizationChange(key, detail.label, null)
+                        }
+                        disabled={!hasCustom}
+                        style={{
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          border: `1px solid ${theme.border}`,
+                          backgroundColor: 'transparent',
+                          color: hasCustom ? theme.accentRed : theme.textSec,
+                          cursor: hasCustom ? 'pointer' : 'not-allowed',
+                          fontSize: '10px',
+                          opacity: hasCustom ? 1 : 0.5,
+                        }}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         ))}
+      </div>
+
+      <div style={styles.settingsSection}>
+        <div style={styles.sectionTitle}>Period Customization Management</div>
+        {periodCustomizations.length > 0 && (
+          <button
+            onClick={onResetAllPeriodCustomizations}
+            style={{
+              ...styles.reconnectBtn,
+              color: theme.accentRed,
+              borderColor: theme.accentRed,
+              width: '100%',
+              padding: '10px 16px',
+              fontSize: '13px',
+            }}
+          >
+            Reset All Period Customizations ({periodCustomizations.length})
+          </button>
+        )}
+        {periodCustomizations.length === 0 && (
+          <div
+            style={{
+              padding: '12px',
+              fontSize: '12px',
+              color: theme.textSec,
+              textAlign: 'center',
+            }}
+          >
+            No custom periods set. All metrics use API defaults.
+          </div>
+        )}
       </div>
 
       <div style={styles.settingsSection}>
