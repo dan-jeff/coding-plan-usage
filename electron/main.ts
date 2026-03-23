@@ -576,6 +576,7 @@ function authenticateProvider(
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      partition: `temp-auth-${provider}`,
     },
   });
 
