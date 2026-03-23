@@ -403,7 +403,7 @@ function setupCaptureFor(
           url.match(/\.(js|css|png|svg|jpg|woff2?|ico|json)$/) ||
           url.includes('_next/static');
 
-        if (isCodexUsageApi && !isStatic) {
+        if (isCodexUsageApi && !isStatic && params.response.status === 200) {
           debug('Codex candidate URL', { url });
           state.interestingRequests.set(requestId, url);
         }
@@ -448,10 +448,10 @@ function setupCaptureFor(
               score += 25;
             if (url.includes('/account/usage')) score += 15;
           } else if (provider === 'codex') {
-            if (url.includes('/backend-api/wham/usage')) score += 50;
-            if (body.includes('rate_limit')) score += 10;
-            if (body.includes('code_review_rate_limit')) score += 10;
-            if (body.includes('used_percent')) score += 5;
+            if (url.includes('/backend-api/wham/usage')) score += 20;
+            if (body.includes('rate_limit')) score += 20;
+            if (body.includes('code_review_rate_limit')) score += 20;
+            if (body.includes('used_percent')) score += 10;
           }
 
           if (score > 0) {
