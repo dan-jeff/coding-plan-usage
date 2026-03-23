@@ -551,17 +551,17 @@ app.on('before-quit', () => {
 async function clearProviderCookies(
   provider: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models'
 ) {
-  const domainMap: Record<string, string> = {
-    z_ai: 'https://z.ai',
-    claude: 'https://claude.ai',
-    codex: 'https://chatgpt.com',
+  const originsMap: Record<string, string[]> = {
+    z_ai: ['https://z.ai'],
+    claude: ['https://claude.ai'],
+    codex: ['https://chatgpt.com', 'https://auth.openai.com'],
   };
-  const origin = domainMap[provider];
-  if (!origin) return;
-  await session.defaultSession.clearStorageData({
-    origin,
-  });
-  info('Cleared cookies for provider', { provider, origin });
+  const origins = originsMap[provider];
+  if (!origins) return;
+  for (const origin of origins) {
+    await session.defaultSession.clearStorageData({ origin });
+  }
+  info('Cleared cookies for provider', { provider, origins });
 }
 
 function authenticateProvider(
