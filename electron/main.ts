@@ -6,6 +6,7 @@ import {
   nativeImage,
   ipcMain,
   screen,
+  session,
 } from 'electron';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -547,6 +548,22 @@ app.on('before-quit', () => {
   app.isQuitting = true;
 });
 
+async function clearProviderCookies(
+  provider: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models'
+) {
+  const domainMap: Record<string, string> = {
+    z_ai: 'https://z.ai',
+    claude: 'https://claude.ai',
+    codex: 'https://chatgpt.com',
+  };
+  const origin = domainMap[provider];
+  if (!origin) return;
+  await session.defaultSession.clearStorageData({
+    origin,
+  });
+  info('Cleared cookies for provider', { provider, origin });
+}
+
 function authenticateProvider(
   provider: 'z_ai' | 'claude' | 'codex' | 'gemini' | 'external_models'
 ) {
@@ -844,7 +861,9 @@ Terminal=false
 ipcMain.on('connect-provider', (event, provider) => {
   info('Connect request for provider', { provider });
   if (provider === 'z_ai' || provider === 'claude' || provider === 'codex') {
-    authenticateProvider(provider);
+    clearProviderCookies(provider).then(() => {
+      authenticateProvider(provider);
+    });
   }
 });
 
@@ -873,8 +892,10 @@ ipcMain.on('disconnect-provider', (event, provider) => {
     provider === 'gemini' ||
     provider === 'external_models'
   ) {
-    deleteSession(provider);
-    mainWindow?.webContents.send('provider-disconnected', provider);
+    clearProviderCookies(provider).then(() => {
+      deleteSession(provider);
+      mainWindow?.webContents.send('provider-disconnected', provider);
+    });
   }
 });
 
