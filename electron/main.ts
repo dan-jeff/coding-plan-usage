@@ -630,16 +630,63 @@ function authenticateProvider(
       provider === 'codex'
         ? 'Please ensure you are on the Codex usage page to complete setup'
         : 'Please navigate to Subscription -> Click "Usage" Tab to complete setup';
+    const usageUrl =
+      provider === 'codex'
+        ? 'https://chatgpt.com/codex/settings/usage'
+        : provider === 'claude'
+          ? 'https://claude.ai/settings/usage'
+          : provider === 'z_ai'
+            ? 'https://z.ai/manage-apikey/subscription'
+            : '';
     authWindow.webContents
       .executeJavaScript(
         `
-      if (!document.querySelector('#usage-tracker-instruction')) {
+      (function() {
+        if (document.querySelector('#usage-tracker-instruction')) return;
         const banner = document.createElement('div');
         banner.id = 'usage-tracker-instruction';
-        banner.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #10b981; color: white; padding: 12px 20px; text-align: center; z-index: 999999; font-family: system-ui; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(0,0,0,0.2);';
-        banner.innerHTML = '${instructionText}';
+        banner.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #10b981; color: white; padding: 12px 20px; z-index: 999999; font-family: system-ui; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 12px;';
+
+        const message = document.createElement('span');
+        message.textContent = ${JSON.stringify(instructionText)};
+        message.style.cssText = 'flex: 1; text-align: center;';
+        banner.appendChild(message);
+
+        const btnStyle = 'background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 4px; padding: 6px 12px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit;';
+
+        const usageUrl = ${JSON.stringify(usageUrl)};
+        if (usageUrl) {
+          const usageBtn = document.createElement('button');
+          usageBtn.type = 'button';
+          usageBtn.textContent = 'Take me to usage';
+          usageBtn.style.cssText = btnStyle;
+          usageBtn.addEventListener('click', () => { window.location.href = usageUrl; });
+          banner.appendChild(usageBtn);
+        }
+
+        const showBtn = document.createElement('button');
+        showBtn.id = 'usage-tracker-show';
+        showBtn.type = 'button';
+        showBtn.textContent = 'Show instructions';
+        showBtn.style.cssText = 'position: fixed; top: 8px; right: 8px; z-index: 999999; background: #10b981; color: white; border: none; border-radius: 4px; padding: 6px 12px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: system-ui; box-shadow: 0 2px 8px rgba(0,0,0,0.2); display: none;';
+        showBtn.addEventListener('click', () => {
+          banner.style.display = 'flex';
+          showBtn.style.display = 'none';
+        });
+
+        const hideBtn = document.createElement('button');
+        hideBtn.type = 'button';
+        hideBtn.textContent = 'Hide';
+        hideBtn.style.cssText = btnStyle;
+        hideBtn.addEventListener('click', () => {
+          banner.style.display = 'none';
+          showBtn.style.display = 'block';
+        });
+        banner.appendChild(hideBtn);
+
         document.body.prepend(banner);
-      }
+        document.body.appendChild(showBtn);
+      })();
     `
       )
       .catch(() => {});
