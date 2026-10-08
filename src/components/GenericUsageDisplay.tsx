@@ -65,11 +65,10 @@ export const GenericUsageDisplay = ({
   const rateMinPercent = iconSettings?.rateMinPercent ?? 5;
 
   if (iconSettings?.coloringMode === 'rate' && isTimeLimited) {
-    // Noise floor: only color if usage AND time have reached the minimum threshold
-    if (
-      detail.percentage >= rateMinPercent &&
-      timeElapsedPct >= rateMinPercent
-    ) {
+    // Noise floor: only color if usage has reached the minimum threshold.
+    // The time-elapsed side is intentionally not gated, so burning through
+    // quota early in the window (usage > elapsed) still gets flagged.
+    if (detail.percentage >= rateMinPercent) {
       if (detail.percentage > timeElapsedPct) {
         usageColor = theme.accentRed;
         timeColor = theme.accentRed;

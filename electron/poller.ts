@@ -135,9 +135,14 @@ export function updatePollingInterval(tray: Tray, minutes: number) {
 }
 
 function getPrimaryMetric(details: UsageDetail[]): UsageDetail | undefined {
-  const shortTermLimit = details.find((d) => d.label === '5-Hour Window');
+  const shortTermLimit = details.find(
+    (d) => d.label === '5-Hour Window' || d.label === 'Week Window'
+  );
   const fallbackLimit = details.find(
-    (d) => d.label !== '5-Hour Window' && d.displayReset !== 'Unavailable'
+    (d) =>
+      d.label !== '5-Hour Window' &&
+      d.label !== 'Week Window' &&
+      d.displayReset !== 'Unavailable'
   );
   return shortTermLimit || fallbackLimit || details[0];
 }
@@ -697,6 +702,22 @@ function parseUsage(body: string): {
   return { usage: null, details: [] };
 }
 
+function classifyCodexWindowLabel(limitSeconds?: number): string {
+  if (typeof limitSeconds !== 'number') {
+    // Unknown window length: keep the legacy label
+    return '5-Hour Window';
+  }
+  if (limitSeconds <= 21600) {
+    // <= 6 hours
+    return '5-Hour Window';
+  }
+  if (limitSeconds > 691200) {
+    // > 8 days
+    return 'Monthly Window';
+  }
+  return 'Week Window'; // ~1 day - 8 days
+}
+
 function parseCodexUsage(body: string): {
   usage: string | null;
   details: UsageDetail[];
@@ -779,7 +800,12 @@ function parseCodexUsage(body: string): {
     });
   };
 
-  pushWindow('5-Hour Window', json.rate_limit?.primary_window);
+  pushWindow(
+    classifyCodexWindowLabel(
+      json.rate_limit?.primary_window?.limit_window_seconds
+    ),
+    json.rate_limit?.primary_window
+  );
   pushWindow('Weekly Limit', json.rate_limit?.secondary_window);
   pushWindow('Code Review', json.code_review_rate_limit?.primary_window);
 
@@ -790,7 +816,7 @@ function parseCodexUsage(body: string): {
 
   details.sort((a, b) => {
     const getPriority = (d: UsageDetail): number => {
-      if (d.label === '5-Hour Window') return 0;
+      if (d.label === '5-Hour Window' || d.label === 'Week Window') return 0;
       if (d.label === 'Weekly Limit') return 1;
       if (d.label === 'Code Review') return 2;
       return 3;
@@ -880,7 +906,7 @@ function parseCodexHtml(body: string): {
 
   details.sort((a, b) => {
     const getPriority = (d: UsageDetail): number => {
-      if (d.label === '5-Hour Window') return 0;
+      if (d.label === '5-Hour Window' || d.label === 'Week Window') return 0;
       if (d.label === 'Weekly Limit') return 1;
       if (d.label === 'Code Review') return 2;
       return 3;
@@ -1265,10 +1291,10 @@ function updateTray(tray: Tray, results: PollResult[]) {
           );
           const usagePct = detail.percentage;
 
-          if (
-            usagePct >= iconSettings.rateMinPercent &&
-            timeElapsedPct >= iconSettings.rateMinPercent
-          ) {
+          // Noise floor: only color if usage has reached the minimum threshold.
+          // The time-elapsed side is intentionally not gated, so burning through
+          // quota early in the window (usage > elapsed) still gets flagged.
+          if (usagePct >= iconSettings.rateMinPercent) {
             if (usagePct > timeElapsedPct) {
               providerColor = 'red';
               break;

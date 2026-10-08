@@ -784,7 +784,7 @@ export const SettingsView = ({
         ) : (
           <div
             style={styles.settingRow}
-            title="Noise floor: Only apply rate-based coloring when both usage and time elapsed reach this %"
+            title="Noise floor: Only apply rate-based coloring when usage reaches this %"
           >
             <span style={styles.settingLabel}>Rate Minimum (%) ⓘ</span>
             <input
